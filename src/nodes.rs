@@ -132,6 +132,9 @@ pub struct Interfaces {
     sort: String,
 }
 
+// this alone doesn't explain what type is for what
+pub type EditInterfaceRequest = HashMap<i32, i32>;
+
 #[derive(Serialize, Deserialize)]
 pub struct Template {
     description: String,
@@ -216,6 +219,17 @@ impl Client {
         self.get(&format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id))
             .await?
             .into_data()
+    }
+
+    // Would connect_interface be a better name?
+    pub async fn edit_interface(
+        &self,
+        node_id: i32,
+        params: &EditInterfaceRequest,
+    ) -> Result<()> {
+        self.put::<(), EditInterfaceRequest>(&format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id), params)
+            .await?;
+        Ok(())
     }
 
     pub async fn node_templates(&self) -> Result<serde_json::Value> {
