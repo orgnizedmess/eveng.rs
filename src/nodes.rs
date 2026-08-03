@@ -179,8 +179,20 @@ impl Client {
         Ok(())
     }
 
-    pub async fn start_node(&self, id: &str) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/start/{}", self.lab_path, id))
+    pub async fn start_node(&self, id: i32) -> Result<()> {
+        self.get::<()>(&format!("labs/{}/nodes/{}/start", self.lab_path, id))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn stop_nodes(&self) -> Result<()> {
+        self.get::<()>(&format!("labs/{}/nodes/stop", self.lab_path))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn stop_node(&self, id: i32) -> Result<()> {
+        self.get::<()>(&format!("labs/{}/nodes/{}/stop", self.lab_path, id))
             .await?;
         Ok(())
     }
@@ -191,8 +203,8 @@ impl Client {
         Ok(())
     }
 
-    pub async fn wipe_node(&self, id: &str) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/wipe/{}", self.lab_path, id))
+    pub async fn wipe_node(&self, id: i32) -> Result<()> {
+        self.get::<()>(&format!("labs/{}/nodes/{}/wipe", self.lab_path, id))
             .await?;
         Ok(())
     }
@@ -203,8 +215,8 @@ impl Client {
         Ok(())
     }
 
-    pub async fn export_node(&self, id: &str) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/export/{}", self.lab_path, id))
+    pub async fn export_node(&self, id: i32) -> Result<()> {
+        self.get::<()>(&format!("labs/{}/nodes/{}/export", self.lab_path, id))
             .await?;
         Ok(())
     }
