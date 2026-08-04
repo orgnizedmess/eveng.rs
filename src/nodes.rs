@@ -17,11 +17,9 @@ pub struct Node {
     pub status: i32,
     pub template: String,
     pub top: i32,
-    #[serde(rename = "type")]
-    pub node_type: String,
     pub url: String,
     #[serde(flatten)]
-    pub kind: NodeKind,
+    pub node_type: NodeType,
 }
 
 pub type Nodes = HashMap<String, Node>;
@@ -34,13 +32,11 @@ pub struct CreateNodeRequest {
     pub icon: String,
     pub left: i32,
     pub name: String,
-    #[serde(rename = "type")]
-    pub node_type: String,
     pub postfix: i32,
     pub template: String,
     pub top: i32,
     #[serde(flatten)]
-    pub kind: NodeKind,
+    pub node_type: NodeType,
 }
 
 #[derive(Debug, Serialize)]
@@ -58,7 +54,7 @@ pub struct EditNodeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top: Option<i32>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<NodeKind>,
+    pub node_type: Option<NodeType>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,56 +63,53 @@ pub struct CreateNodeResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum NodeKind {
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum NodeType {
     Iol(IolParams),
     Qemu(QemuParams),
     Dynamips(DynamipsParams),
     Docker(DockerParams),
-    Vpcs(VpcsParams),
+    Vpcs,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QemuParams {
-    console: String,
-    cpu: String,
-    cpulimit: String,
-    ethernet: String,
-    image: String,
-    ram: String,
-    qemu_version: String,
-    qemu_arch: String,
-    qemu_nic: String,
-    qemu_options: String,
-    uuid: Option<String>,
+    pub console: String,
+    pub cpu: i32,
+    pub cpulimit: Option<i32>,
+    pub ethernet: i32,
+    pub image: String,
+    pub ram: i32,
+    pub qemu_version: Option<String>,
+    pub qemu_arch: Option<String>,
+    pub qemu_nic: Option<String>,
+    pub qemu_options: Option<String>,
+    pub uuid: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DynamipsParams {
-    idlepc: String,
-    image: String,
-    nvram: String,
-    ram: String,
+    pub idlepc: String,
+    pub image: String,
+    pub nvram: i32,
+    pub ram: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IolParams {
-    ethernet: String,
-    image: String,
-    nvram: String,
-    ram: String,
-    serial: String,
+    pub ethernet: i32,
+    pub image: String,
+    pub nvram: i32,
+    pub ram: i32,
+    pub serial: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DockerParams {
-    ethernet: String,
-    image: String,
-    ram: String,
+    pub ethernet: i32,
+    pub image: String,
+    pub ram: i32,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VpcsParams {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Interface {

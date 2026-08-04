@@ -1,7 +1,7 @@
 use eveng::Client;
 use eveng::Result;
 use eveng::nodes::{
-    CreateNodeRequest, CreateNodeResponse, EditNodeRequest, Nodes, NodeKind, VpcsParams,
+    CreateNodeRequest, CreateNodeResponse, EditNodeRequest, Nodes, NodeType
 };
 
 fn test_client() -> Client {
@@ -27,7 +27,6 @@ pub async fn main() -> Result<()> {
     let resp: CreateNodeResponse = client
         .add_node(&CreateNodeRequest {
             template: "vpcs".to_string(),
-            node_type: "vpcs".to_string(),
             count: 1,
             name: "VPC".to_string(),
             icon: "PC-2D-Desktop-Generic-S.svg".to_string(),
@@ -36,7 +35,7 @@ pub async fn main() -> Result<()> {
             left: 0,
             top: 0,
             postfix: 0,
-            kind: NodeKind::Vpcs(VpcsParams {}),
+            node_type: NodeType::Vpcs,
         })
         .await?;
 
@@ -56,7 +55,7 @@ pub async fn main() -> Result<()> {
                 left: None,
                 name: Some("PC1".to_string()),
                 top: None,
-                kind: None,
+                node_type: None,
             },
         )
         .await?;
