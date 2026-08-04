@@ -4,8 +4,19 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// main error type
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("HTTP request failed: {0}")]
-    Http(#[from] reqwest::Error),
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error)
+
+    #[error("HTTP error: {code} {body}")]
+    Http {
+        /// http status code
+        code: u16,
+        /// response body
+        body: String,
+    },
+
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 
     /// api returned an error response
     #[error("EVE-NG API error (status {status}): {message}")]
@@ -16,8 +27,12 @@ pub enum Error {
         status: String,
         /// error message from api
         message: String,
+        /// response body
+        body: String,
     },
 
     #[error("expected data in response but got none")]
     MissingData,
+
+
 }

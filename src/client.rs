@@ -1,5 +1,5 @@
-use crate::{Error, Result};
 use crate::utils::number_from_string;
+use crate::{Error, Result};
 use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -21,8 +21,7 @@ pub struct LoginRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Response<T> {
-    #[serde(deserialize_with = "number_from_string")]
-    code: i32,
+    code: u16,
     status: String,
     message: String,
     #[serde(default = "Option::default")]
@@ -120,7 +119,19 @@ impl Client {
             request = request.json(body);
         }
 
-        let response: Response<T> = request.send().await?.json().await?;
+        let response = request.send().await?;
+        let status = response.status();
+        let text = response.text().await?;
+
+        if !status.is_success() {
+            return Err(Error::Http {
+                code: status,
+                body: text,
+            });
+        }
+
+        eprintln!("{}", text);
+        let response: Response<T> = serde_json::from_str(&text)?;
 
         match response.code {
             200..=299 => Ok(response),
@@ -128,6 +139,7 @@ impl Client {
                 code: response.code,
                 status: response.status.to_string(),
                 message: response.message.to_string(),
+                body: text,
             }),
         }
     }
@@ -160,5 +172,57 @@ impl Client {
         T: DeserializeOwned,
     {
         self.request::<T, ()>(Method::DELETE, endpoint, None).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Client, Error};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    #[tokio::test]
+    async fn test_bad_gateway_response() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/auth/login"))
+            .respond_with(ResponseTemplate::new(502).set_body_string(
+                r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>502 Bad Gateway</title>
+</head>
+<body>
+    <center>
+        <h1>502 Bad Gateway</h1>
+    </center>
+    <hr>
+    <center>nginx</center>
+</body>
+</html>"#,
+            ))
+            .mount(&server)
+            .await;
+
+        let client = Client::new(
+            server.uri(),
+            "admin".to_string(),
+            "eve".to_string(),
+            "test.unl".to_string(),
+        )
+        .unwrap();
+
+        let err = client.login().await.unwrap_err();
+
+        match err {
+            Error::Http { code, body } => {
+                assert_eq!(code, 502);
+                assert!(body.contains("502 Bad Gateway"));
+            }
+            other => panic!("expected HTTP error, got {other:?}"),
+        }
     }
 }
