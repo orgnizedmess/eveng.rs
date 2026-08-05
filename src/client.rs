@@ -14,18 +14,19 @@ pub struct Client {
 
 #[derive(Debug, Serialize)]
 pub struct LoginRequest {
-    username: String,
-    password: String,
-    html5: i32,
+    pub username: String,
+    pub password: String,
+    pub html5: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Response<T> {
-    code: u16,
-    status: String,
-    message: String,
+    #[serde(deserialize_with = "number_from_string")]
+    pub code: i32,
+    pub status: String,
+    pub message: String,
     #[serde(default = "Option::default")]
-    data: Option<T>,
+    pub data: Option<T>,
 }
 
 impl<T> Response<T> {
@@ -36,28 +37,28 @@ impl<T> Response<T> {
 
 #[derive(Serialize, Deserialize)]
 pub struct SystemStatus {
-    cached: i32,
-    cpu: i32,
-    disk: i32,
-    dynamips: i32,
-    iol: i32,
-    mem: i32,
-    qemu: i32,
-    qemu_version: String,
-    swap: i32,
-    version: String,
+    pub cached: i32,
+    pub cpu: i32,
+    pub disk: i32,
+    pub dynamips: i32,
+    pub iol: i32,
+    pub mem: i32,
+    pub qemu: i32,
+    pub qemu_version: String,
+    pub swap: i32,
+    pub version: String,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct AuthInfo {
-    email: String,
-    lab: String,
-    lang: String,
-    name: String,
-    role: String,
+    pub email: String,
+    pub lab: String,
+    pub lang: String,
+    pub name: String,
+    pub role: String,
     #[serde(deserialize_with = "number_from_string")]
-    tenant: i32,
-    username: String,
+    pub tenant: i32,
+    pub username: String,
 }
 
 impl Client {

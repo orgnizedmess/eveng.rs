@@ -1,23 +1,23 @@
-use crate::{Client, Result};
 use crate::utils::number_from_string;
+use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Lab {
     pub author: String,
-    pub description: String,
     pub body: String,
+    pub description: String,
     // without extension, with extension returns an error
     pub filename: String,
     // uuid style ids
     pub id: Option<String>,
-    pub name: String,
-    #[serde(deserialize_with = "number_from_string")]
-    pub version: i32,
-    pub scripttimeout: i32,
     // Mentioned in source code but not in API docs, value is 0 or 1
     #[serde(deserialize_with = "number_from_string")]
     pub lock: i32,
+    pub name: String,
+    pub scripttimeout: i32,
+    #[serde(deserialize_with = "number_from_string")]
+    pub version: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,15 +75,20 @@ impl Client {
     }
 
     pub async fn edit_lab(&self, path: &str, params: &EditLabRequest) -> Result<()> {
-        self.put::<(), EditLabRequest>(&format!("labs/{}", path), params).await?;
+        self.put::<(), EditLabRequest>(&format!("labs/{}", path), params)
+            .await?;
         Ok(())
     }
 
     // Doesn't run correctly via API, works if I make files via GUI
     pub async fn move_lab(&self, src_path: &str, dest_path: &str) -> Result<()> {
-        self.put::<(), MoveLabRequest>(&format!("labs/{}/move", src_path), &MoveLabRequest {
-            dest_path: dest_path.to_string(),
-        }).await?;
+        self.put::<(), MoveLabRequest>(
+            &format!("labs/{}/move", src_path),
+            &MoveLabRequest {
+                dest_path: dest_path.to_string(),
+            },
+        )
+        .await?;
         Ok(())
     }
 
@@ -95,13 +100,15 @@ impl Client {
     // Visible on GUI, undocumented in API
     // Yes, the endpoint is with a capital L
     pub async fn lock_lab(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/Lock", self.lab_path)).await?;
+        self.get::<()>(&format!("labs/{}/Lock", self.lab_path))
+            .await?;
         Ok(())
     }
 
     // Visible on GUI, undocumented in API
     pub async fn unlock_lab(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/Unlock", self.lab_path)).await?;
+        self.get::<()>(&format!("labs/{}/Unlock", self.lab_path))
+            .await?;
         Ok(())
     }
 }

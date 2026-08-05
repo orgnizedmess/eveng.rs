@@ -1,5 +1,5 @@
-use crate::{Client, Result};
 use crate::utils::empty_vec_as_map;
+use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

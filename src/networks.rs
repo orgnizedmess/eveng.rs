@@ -1,22 +1,22 @@
-use crate::{Client, Result};
 use crate::utils::number_from_string;
+use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Network {
-    count: i32,
-    icon: String,
+    pub count: i32,
+    pub icon: String,
     // appears in /networks, not in /networks/{id}
     #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<i32>,
-    left: i32,
-    name: String,
-    top: i32,
+    pub id: Option<i32>,
+    pub left: i32,
+    pub name: String,
+    pub top: i32,
     #[serde(rename = "type")]
-    network_type: String,
+    pub network_type: String,
     #[serde(deserialize_with = "number_from_string")]
-    visibility: i32,
+    pub visibility: i32,
 }
 
 pub type Networks = HashMap<String, Network>;

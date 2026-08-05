@@ -1,7 +1,7 @@
-use serde::{Deserialize};
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use std::collections::HashMap;
 use serde_json::Value;
+use std::collections::HashMap;
 
 pub(crate) fn number_from_string<'de, D>(deserializer: D) -> std::result::Result<i32, D::Error>
 where
@@ -22,7 +22,9 @@ where
     }
 }
 
-pub(crate) fn empty_vec_as_map<'de, D, V>(deserializer: D) -> std::result::Result<HashMap<String, V>, D::Error>
+pub(crate) fn empty_vec_as_map<'de, D, V>(
+    deserializer: D,
+) -> std::result::Result<HashMap<String, V>, D::Error>
 where
     D: serde::Deserializer<'de>,
     V: DeserializeOwned,
@@ -31,12 +33,9 @@ where
 
     match value {
         Value::Object(map) => {
-            serde_json::from_value(Value::Object(map))
-                .map_err(serde::de::Error::custom)
+            serde_json::from_value(Value::Object(map)).map_err(serde::de::Error::custom)
         }
-        Value::Array(items) if items.is_empty() => {
-            Ok(HashMap::new())
-        }
+        Value::Array(items) if items.is_empty() => Ok(HashMap::new()),
         _ => Err(serde::de::Error::custom("expected map or empty array")),
     }
 }

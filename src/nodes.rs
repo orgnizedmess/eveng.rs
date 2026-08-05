@@ -1,5 +1,5 @@
-use crate::{Client, Result};
 use crate::utils::number_from_string;
+use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -7,19 +7,23 @@ use std::collections::HashMap;
 pub struct Node {
     #[serde(deserialize_with = "number_from_string")]
     pub config: i32,
+    pub console: String,
     pub delay: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config_list: Option<Vec<serde_json::Value>>,
     pub icon: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<i32>,
+    pub image: String,
     pub left: i32,
     pub name: String,
+    #[serde(flatten)]
+    pub node_type: NodeType,
     pub status: i32,
     pub template: String,
     pub top: i32,
     pub url: String,
-    #[serde(flatten)]
-    pub node_type: NodeType,
+    pub uuid: Option<String>,
 }
 
 pub type Nodes = HashMap<String, Node>;
@@ -32,11 +36,11 @@ pub struct CreateNodeRequest {
     pub icon: String,
     pub left: i32,
     pub name: String,
+    #[serde(flatten)]
+    pub node_type: NodeType,
     pub postfix: i32,
     pub template: String,
     pub top: i32,
-    #[serde(flatten)]
-    pub node_type: NodeType,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,36 +73,41 @@ pub enum NodeType {
     Qemu(QemuParams),
     Dynamips(DynamipsParams),
     Docker(DockerParams),
-    Vpcs,
+    Vpcs(VpcsParams),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QemuParams {
-    pub console: String,
     pub cpu: i32,
     pub cpulimit: Option<i32>,
     pub ethernet: i32,
-    pub image: String,
     pub ram: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub qemu_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub qemu_arch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub qemu_nic: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub qemu_options: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uuid: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DynamipsParams {
     pub idlepc: String,
-    pub image: String,
     pub nvram: i32,
     pub ram: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot1: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot2: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IolParams {
     pub ethernet: i32,
-    pub image: String,
     pub nvram: i32,
     pub ram: i32,
     pub serial: i32,
@@ -107,22 +116,26 @@ pub struct IolParams {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DockerParams {
     pub ethernet: i32,
-    pub image: String,
     pub ram: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct VpcsParams {
+    pub ethernet: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Interface {
-    name: String,
-    network_id: i32,
+    pub name: String,
+    pub network_id: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Interfaces {
-    ethernet: Vec<Interface>,
-    id: i32,
-    serial: Vec<Interface>,
-    sort: String,
+    pub ethernet: Vec<Interface>,
+    pub id: i32,
+    pub serial: Vec<Interface>,
+    pub sort: String,
 }
 
 // this alone doesn't explain what type is for what
@@ -137,6 +150,8 @@ pub struct Template {
     #[serde(rename = "type")]
     template_type: String,
 }
+
+pub type Templates = HashMap<String, String>;
 
 impl Client {
     pub async fn nodes(&self) -> Result<Nodes> {
@@ -221,23 +236,25 @@ impl Client {
     }
 
     pub async fn interfaces(&self, node_id: i32) -> Result<Interfaces> {
-        self.get(&format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id))
-            .await?
-            .into_data()
+        self.get(&format!(
+            "labs/{}/nodes/{}/interfaces",
+            self.lab_path, node_id
+        ))
+        .await?
+        .into_data()
     }
 
     // Would connect_interface be a better name?
-    pub async fn edit_interface(
-        &self,
-        node_id: i32,
-        params: &EditInterfaceRequest,
-    ) -> Result<()> {
-        self.put::<(), EditInterfaceRequest>(&format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id), params)
-            .await?;
+    pub async fn edit_interface(&self, node_id: i32, params: &EditInterfaceRequest) -> Result<()> {
+        self.put::<(), EditInterfaceRequest>(
+            &format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id),
+            params,
+        )
+        .await?;
         Ok(())
     }
 
-    pub async fn node_templates(&self) -> Result<serde_json::Value> {
+    pub async fn node_templates(&self) -> Result<Templates> {
         self.get("list/templates/").await?.into_data()
     }
 

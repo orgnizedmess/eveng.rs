@@ -1,7 +1,7 @@
 use eveng::Client;
 use eveng::Result;
 use eveng::nodes::{
-    CreateNodeRequest, CreateNodeResponse, EditNodeRequest, Nodes, NodeType
+    CreateNodeRequest, CreateNodeResponse, EditNodeRequest, NodeType, Nodes, VpcsParams,
 };
 
 fn test_client() -> Client {
@@ -35,7 +35,7 @@ pub async fn main() -> Result<()> {
             left: 0,
             top: 0,
             postfix: 0,
-            node_type: NodeType::Vpcs,
+            node_type: NodeType::Vpcs(VpcsParams { ethernet: 1 }),
         })
         .await?;
 

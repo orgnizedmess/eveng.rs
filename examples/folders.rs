@@ -1,5 +1,5 @@
+use eveng::folders::{Folder, FolderEntry};
 use eveng::{Client, Result};
-use eveng::folders::{Folders, FolderEntry};
 
 fn test_client() -> Client {
     Client::new(
@@ -17,33 +17,30 @@ pub async fn main() -> Result<()> {
     client.login().await.unwrap();
 
     // List root folder
-    let resp: Folders = client.folder("").await?;
+    let resp: Folder = client.folder("").await?;
     eprintln!("{}", serde_json::to_string_pretty(&resp).unwrap());
 
     let name = "New Folder".to_string();
 
     // Add
-    let _resp = client.add_folder(&FolderEntry {
+    let _resp = client
+        .add_folder(&FolderEntry {
             name: name.clone(),
             path: "/".to_string(),
-        }).await?;
+        })
+        .await?;
 
     // Before
-    let resp: Folders = client.folder("").await?;
+    let resp: Folder = client.folder("").await?;
     eprintln!("{}", serde_json::to_string_pretty(&resp).unwrap());
 
     // Edit
-    client
-        .edit_folder(
-            &name,
-            "/Test Folder",
-        )
-        .await?;
+    client.edit_folder(&name, "/Test Folder").await?;
 
     let name = "Test Folder".to_string();
 
     // After
-    let resp: Folders = client.folder("").await?;
+    let resp: Folder = client.folder("").await?;
     eprintln!("{}", serde_json::to_string_pretty(&resp).unwrap());
 
     // Delete

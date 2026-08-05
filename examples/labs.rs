@@ -1,5 +1,5 @@
+use eveng::labs::{CreateLabRequest, EditLabRequest, Lab};
 use eveng::{Client, Result};
-use eveng::labs::{Lab, CreateLabRequest, EditLabRequest};
 
 fn test_client() -> Client {
     Client::new(
@@ -18,7 +18,8 @@ pub async fn main() -> Result<()> {
 
     let path = "Test1.unl".to_string();
 
-    let _resp = client.add_lab(&CreateLabRequest {
+    let _resp = client
+        .add_lab(&CreateLabRequest {
             name: "Test1".to_string(),
             path: "/".to_string(),
             version: 1,
@@ -26,7 +27,8 @@ pub async fn main() -> Result<()> {
             author: None,
             body: None,
             description: None,
-        }).await?;
+        })
+        .await?;
 
     // Before
     let resp: Lab = client.lab(&path).await?;

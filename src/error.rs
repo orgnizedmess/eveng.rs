@@ -5,12 +5,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
-    Reqwest(#[from] reqwest::Error)
+    Reqwest(#[from] reqwest::Error),
 
     #[error("HTTP error: {code} {body}")]
     Http {
         /// http status code
-        code: u16,
+        code: reqwest::StatusCode,
         /// response body
         body: String,
     },
@@ -33,6 +33,4 @@ pub enum Error {
 
     #[error("expected data in response but got none")]
     MissingData,
-
-
 }

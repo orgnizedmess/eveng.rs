@@ -1,5 +1,5 @@
-mod error;
 mod client;
+mod error;
 mod utils;
 
 pub mod folders;
@@ -12,4 +12,3 @@ pub mod users;
 
 pub use crate::client::{Client, Response};
 pub use crate::error::{Error, Result};
-

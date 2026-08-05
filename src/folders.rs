@@ -17,7 +17,7 @@ pub struct FileEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Folders {
+pub struct Folder {
     pub folders: Vec<FolderEntry>,
     pub labs: Vec<FileEntry>,
 }
@@ -28,7 +28,7 @@ pub struct EditFolderRequest {
 }
 
 impl Client {
-    pub async fn folder(&self, name: &str) -> Result<Folders> {
+    pub async fn folder(&self, name: &str) -> Result<Folder> {
         self.get(&format!("folders/{}", name)).await?.into_data()
     }
 
@@ -39,9 +39,13 @@ impl Client {
 
     // Move and/or rename
     pub async fn edit_folder(&self, src_path: &str, dest_path: &str) -> Result<()> {
-        self.put::<(), EditFolderRequest>(&format!("folders/{}", src_path), &EditFolderRequest {
-            path: dest_path.to_string(),
-        }).await?;
+        self.put::<(), EditFolderRequest>(
+            &format!("folders/{}", src_path),
+            &EditFolderRequest {
+                path: dest_path.to_string(),
+            },
+        )
+        .await?;
         Ok(())
     }
 

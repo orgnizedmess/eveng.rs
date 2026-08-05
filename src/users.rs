@@ -1,61 +1,63 @@
-use crate::{Client, Result};
 use crate::utils::number_from_string;
+use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
-    email: String,
+    pub email: String,
     #[serde(deserialize_with = "number_from_string")]
-    expiration: i32,
+    pub expiration: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    folder: Option<String>,
-    ip: String,
+    pub folder: Option<String>,
+    pub ip: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    lab: Option<String>,
-    name: String,
+    pub lab: Option<String>,
+    pub name: String,
     #[serde(deserialize_with = "number_from_string")]
-    pexpiration: i32,
+    pub pexpiration: i32,
     #[serde(deserialize_with = "number_from_string")]
-    pod: i32,
-    role: String,
+    pub pod: i32,
+    pub role: String,
     #[serde(deserialize_with = "number_from_string")]
-    session: i32,
-    username: String,
+    pub session: i32,
+    pub username: String,
 }
 #[derive(Default, Serialize)]
 pub struct CreateUserRequest {
-    username: String,
-    password: String,
+    pub username: String,
+    pub password: String,
     // Validate by matching with /api/list/roles?
-    role: String,
-    pod: i32,
+    pub role: String,
+    pub pod: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    email: Option<String>,
+    pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    expiration: Option<i32>,
+    pub expiration: Option<i32>,
 }
 
 #[derive(Default, Serialize)]
 pub struct EditUserRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    password: Option<String>,
+    pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    role: Option<String>,
+    pub role: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pod: Option<i32>,
+    pub pod: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    email: Option<String>,
+    pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    expiration: Option<i32>,
+    pub expiration: Option<i32>,
 }
 
+pub type UserRoles = HashMap<String, String>;
+
 impl Client {
-    pub async fn users(&self) -> Result<HashMap<String, serde_json::Value>> {
+    pub async fn users(&self) -> Result<HashMap<String, User>> {
         self.get("users/").await?.into_data()
     }
 
@@ -79,7 +81,7 @@ impl Client {
         Ok(())
     }
 
-    pub async fn user_roles(&self) -> Result<serde_json::Value> {
+    pub async fn user_roles(&self) -> Result<UserRoles> {
         self.get("list/roles").await?.into_data()
     }
 }
