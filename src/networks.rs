@@ -83,32 +83,29 @@ pub type NetworkTypes = HashMap<String, String>;
 
 impl Client {
     pub async fn networks(&self) -> Result<Networks> {
-        self.get(&format!("labs/{}/networks", self.lab_path))
+        self.get(&format!("/labs/{}/networks", self.lab_path))
             .await?
             .into_data()
     }
 
     pub async fn network(&self, id: i32) -> Result<Network> {
-        self.get(&format!("labs/{}/networks/{}", self.lab_path, id))
+        self.get(&format!("/labs/{}/networks/{}", self.lab_path, id))
             .await?
             .into_data()
     }
 
-    pub async fn add_network(
-        &self,
-        params: &CreateNetworkRequest,
-    ) -> Result<CreateNetworkResponse> {
+    pub async fn add_network(&self, params: CreateNetworkRequest) -> Result<CreateNetworkResponse> {
         self.post::<CreateNetworkResponse, CreateNetworkRequest>(
-            &format!("labs/{}/networks", self.lab_path),
+            &format!("/labs/{}/networks", self.lab_path),
             params,
         )
         .await?
         .into_data()
     }
 
-    pub async fn edit_network(&self, id: i32, params: &EditNetworkRequest) -> Result<()> {
+    pub async fn edit_network(&self, id: i32, params: EditNetworkRequest) -> Result<()> {
         self.put::<(), EditNetworkRequest>(
-            &format!("labs/{}/networks/{}", self.lab_path, id),
+            &format!("/labs/{}/networks/{}", self.lab_path, id),
             params,
         )
         .await?;
@@ -116,12 +113,12 @@ impl Client {
     }
 
     pub async fn delete_network(&self, id: i32) -> Result<DeleteNetworkResponse> {
-        self.delete(&format!("labs/{}/networks/{}", self.lab_path, id))
+        self.delete(&format!("/labs/{}/networks/{}", self.lab_path, id))
             .await?
             .into_data()
     }
 
     pub async fn network_types(&self) -> Result<NetworkTypes> {
-        self.get("list/networks").await?.into_data()
+        self.get("/list/networks").await?.into_data()
     }
 }

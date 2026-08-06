@@ -1,22 +1,32 @@
 use crate::utils::number_from_string;
 use crate::{Error, Result};
-use reqwest::Method;
+use reqwest::{Method, Url};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
+/// Client for the EVE-NG API
+///
+/// # Example
+///
+/// ```no_run
+/// use eveng::Client;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let client = Client::new("http://localhost", "Test.unl")?
+///     .login("admin", "eve")
+///     .await?;
+/// client.nodes().await?;
+/// #   Ok(())
+/// # }
+/// ```
+#[derive(Debug, Clone)]
 pub struct Client {
-    pub url: String,
-    pub username: String,
-    pub password: String,
-    pub lab_path: String,
-    pub client: reqwest::Client,
-}
-
-#[derive(Debug, Serialize)]
-pub struct LoginRequest {
-    pub username: String,
-    pub password: String,
-    pub html5: i32,
+    pub(crate) base_url: Url,
+    pub(crate) client: reqwest::Client,
+    timeout: Duration,
+    pub(crate) lab_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -62,62 +72,77 @@ pub struct AuthInfo {
 }
 
 impl Client {
-    pub fn new(url: String, username: String, password: String, lab_path: String) -> Result<Self> {
-        let client = reqwest::Client::builder().cookie_store(true).build()?;
-
+    pub fn new(base_url: impl AsRef<str>, lab_path: impl Into<String>) -> Result<Self> {
         Ok(Self {
-            url,
-            username,
-            password,
-            lab_path,
-            client,
+            base_url: Url::parse(base_url.as_ref())?,
+            client: reqwest::Client::new(),
+            timeout: Duration::from_secs(10),
+            lab_path: lab_path.into(),
         })
     }
 
-    pub async fn login(&self) -> Result<()> {
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    pub async fn login(
+        &mut self,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Result<Self> {
+        self.client = reqwest::Client::builder()
+            .timeout(self.timeout)
+            .cookie_store(true)
+            .build()?;
+
+        #[derive(Serialize)]
+        struct LoginRequest {
+            username: String,
+            password: String,
+            html5: i32,
+        }
+
         self.post::<(), LoginRequest>(
-            "auth/login",
-            &LoginRequest {
-                username: self.username.clone(),
-                password: self.password.clone(),
-                // where to take this input?
-                // should I take LoginRequest as a parameter?
-                html5: 0,
+            "/auth/login",
+            LoginRequest {
+                username: username.into(),
+                password: password.into(),
+                html5: 1,
             },
         )
         .await?;
-        Ok(())
+        Ok(self.clone())
     }
 
     pub async fn auth_info(&self) -> Result<AuthInfo> {
-        self.get("auth").await?.into_data()
+        self.get("/auth").await?.into_data()
     }
 
     pub async fn logout(&self) -> Result<()> {
-        self.get::<()>("auth/logout").await?;
+        self.get::<()>("/auth/logout").await?;
         Ok(())
     }
 
     pub async fn system_status(&self) -> Result<SystemStatus> {
-        self.get("status").await?.into_data()
+        self.get("/status").await?.into_data()
     }
 
     pub async fn request<T, B>(
         &self,
         method: Method,
         endpoint: &str,
-        body: Option<&B>,
+        body: Option<B>,
     ) -> Result<Response<T>>
     where
         T: DeserializeOwned,
-        B: Serialize + ?Sized,
+        B: Serialize,
     {
-        let mut request = self
-            .client
-            .request(method, format!("{}/api/{}", self.url, endpoint));
+        let uri = self.base_url.join(&format!("/api{}", endpoint))?;
+        let mut request = self.client.request(method, uri);
 
         if let Some(body) = body {
-            request = request.json(body);
+            request = request.json(&body);
         }
 
         let response = request.send().await?;
@@ -131,7 +156,6 @@ impl Client {
             });
         }
 
-        eprintln!("{}", text);
         let response: Response<T> = serde_json::from_str(&text)?;
 
         match response.code {
@@ -152,20 +176,20 @@ impl Client {
         self.request::<T, ()>(Method::GET, endpoint, None).await
     }
 
-    pub async fn post<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
+    pub async fn post<T, B>(&self, endpoint: &str, body: B) -> Result<Response<T>>
     where
         T: DeserializeOwned,
-        B: Serialize + ?Sized,
+        B: Serialize,
     {
-        self.request(Method::POST, endpoint, Some(body)).await
+        self.request(Method::POST, endpoint, Some(&body)).await
     }
 
-    pub async fn put<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
+    pub async fn put<T, B>(&self, endpoint: &str, body: B) -> Result<Response<T>>
     where
         T: DeserializeOwned,
-        B: Serialize + ?Sized,
+        B: Serialize,
     {
-        self.request(Method::PUT, endpoint, Some(body)).await
+        self.request(Method::PUT, endpoint, Some(&body)).await
     }
 
     pub async fn delete<T>(&self, endpoint: &str) -> Result<Response<T>>
@@ -178,14 +202,14 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Client, Error};
+    use crate::{Client, Error, Result};
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{method, path},
     };
 
     #[tokio::test]
-    async fn test_bad_gateway_response() {
+    async fn test_bad_gateway_response() -> Result<()> {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
@@ -208,15 +232,10 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = Client::new(
-            server.uri(),
-            "admin".to_string(),
-            "eve".to_string(),
-            "test.unl".to_string(),
-        )
-        .unwrap();
-
-        let err = client.login().await.unwrap_err();
+        let client = Client::new(server.uri(), "test.unl")?
+            .login("admin", "eve")
+            .await;
+        let err = client.unwrap_err();
 
         match err {
             Error::Http { code, body } => {
@@ -225,5 +244,6 @@ mod tests {
             }
             other => panic!("expected HTTP error, got {other:?}"),
         }
+        Ok(())
     }
 }

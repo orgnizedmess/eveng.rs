@@ -155,89 +155,89 @@ pub type Templates = HashMap<String, String>;
 
 impl Client {
     pub async fn nodes(&self) -> Result<Nodes> {
-        self.get(&format!("labs/{}/nodes", self.lab_path))
+        self.get(&format!("/labs/{}/nodes", self.lab_path))
             .await?
             .into_data()
     }
 
     pub async fn node(&self, id: i32) -> Result<Node> {
-        self.get(&format!("labs/{}/nodes/{}", self.lab_path, id))
+        self.get(&format!("/labs/{}/nodes/{}", self.lab_path, id))
             .await?
             .into_data()
     }
 
-    pub async fn add_node(&self, params: &CreateNodeRequest) -> Result<CreateNodeResponse> {
+    pub async fn add_node(&self, params: CreateNodeRequest) -> Result<CreateNodeResponse> {
         self.post::<CreateNodeResponse, CreateNodeRequest>(
-            &format!("labs/{}/nodes", self.lab_path),
+            &format!("/labs/{}/nodes", self.lab_path),
             params,
         )
         .await?
         .into_data()
     }
 
-    pub async fn edit_node(&self, id: i32, params: &EditNodeRequest) -> Result<()> {
-        self.put::<(), EditNodeRequest>(&format!("labs/{}/nodes/{}", self.lab_path, id), params)
+    pub async fn edit_node(&self, id: i32, params: EditNodeRequest) -> Result<()> {
+        self.put::<(), EditNodeRequest>(&format!("/labs/{}/nodes/{}", self.lab_path, id), params)
             .await?;
         Ok(())
     }
 
     pub async fn start_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/start", self.lab_path))
+        self.get::<()>(&format!("/labs/{}/nodes/start", self.lab_path))
             .await?;
         Ok(())
     }
 
     pub async fn start_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/start", self.lab_path, id))
+        self.get::<()>(&format!("/labs/{}/nodes/{}/start", self.lab_path, id))
             .await?;
         Ok(())
     }
 
     pub async fn stop_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/stop", self.lab_path))
+        self.get::<()>(&format!("/labs/{}/nodes/stop", self.lab_path))
             .await?;
         Ok(())
     }
 
     pub async fn stop_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/stop", self.lab_path, id))
+        self.get::<()>(&format!("/labs/{}/nodes/{}/stop", self.lab_path, id))
             .await?;
         Ok(())
     }
 
     pub async fn wipe_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/wipe", self.lab_path))
+        self.get::<()>(&format!("/labs/{}/nodes/wipe", self.lab_path))
             .await?;
         Ok(())
     }
 
     pub async fn wipe_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/wipe", self.lab_path, id))
+        self.get::<()>(&format!("/labs/{}/nodes/{}/wipe", self.lab_path, id))
             .await?;
         Ok(())
     }
 
     pub async fn export_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/export", self.lab_path))
+        self.get::<()>(&format!("/labs/{}/nodes/export", self.lab_path))
             .await?;
         Ok(())
     }
 
     pub async fn export_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/export", self.lab_path, id))
+        self.get::<()>(&format!("/labs/{}/nodes/{}/export", self.lab_path, id))
             .await?;
         Ok(())
     }
 
     pub async fn delete_node(&self, id: i32) -> Result<()> {
-        self.delete::<()>(&format!("labs/{}/nodes/{}", self.lab_path, id))
+        self.delete::<()>(&format!("/labs/{}/nodes/{}", self.lab_path, id))
             .await?;
         Ok(())
     }
 
     pub async fn interfaces(&self, node_id: i32) -> Result<Interfaces> {
         self.get(&format!(
-            "labs/{}/nodes/{}/interfaces",
+            "/labs/{}/nodes/{}/interfaces",
             self.lab_path, node_id
         ))
         .await?
@@ -245,9 +245,9 @@ impl Client {
     }
 
     // Would connect_interface be a better name?
-    pub async fn edit_interface(&self, node_id: i32, params: &EditInterfaceRequest) -> Result<()> {
+    pub async fn edit_interface(&self, node_id: i32, params: EditInterfaceRequest) -> Result<()> {
         self.put::<(), EditInterfaceRequest>(
-            &format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id),
+            &format!("/labs/{}/nodes/{}/interfaces", self.lab_path, node_id),
             params,
         )
         .await?;
@@ -255,11 +255,11 @@ impl Client {
     }
 
     pub async fn node_templates(&self) -> Result<Templates> {
-        self.get("list/templates/").await?.into_data()
+        self.get("/list/templates/").await?.into_data()
     }
 
     pub async fn node_template(&self, template: &str) -> Result<Template> {
-        self.get(&format!("list/templates/{}", template))
+        self.get(&format!("/list/templates/{}", template))
             .await?
             .into_data()
     }

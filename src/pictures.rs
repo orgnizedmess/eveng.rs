@@ -36,13 +36,13 @@ pub type Pictures = HashMap<String, Picture>;
 
 impl Client {
     pub async fn pictures(&self) -> Result<Pictures> {
-        self.get(&format!("labs/{}/pictures", self.lab_path))
+        self.get(&format!("/labs/{}/pictures", self.lab_path))
             .await?
             .into_data()
     }
 
     pub async fn picture(&self, id: i32) -> Result<Picture> {
-        self.get(&format!("labs/{}/pictures/{}", self.lab_path, id))
+        self.get(&format!("/labs/{}/pictures/{}", self.lab_path, id))
             .await?
             .into_data()
     }
@@ -51,9 +51,9 @@ impl Client {
     pub async fn picture_data(&self, id: i32, width: i32, height: i32) -> Result<Vec<u8>> {
         let resp = self
             .client
-            .get(&format!(
+            .get(format!(
                 "{}/api/labs/{}/pictures/{}/data/{}/{}",
-                self.url, self.lab_path, id, width, height
+                self.base_url, self.lab_path, id, width, height
             ))
             .send()
             .await?;
@@ -72,7 +72,10 @@ impl Client {
 
         let _response = self
             .client
-            .post(format!("{}/api/labs/{}/pictures", self.url, self.lab_path))
+            .post(format!(
+                "{}/api/labs/{}/pictures",
+                self.base_url, self.lab_path
+            ))
             .multipart(form)
             .send()
             .await?;
@@ -82,7 +85,7 @@ impl Client {
 
     // Editing an image map doesn't make much sense as an API call?
     // Untested
-    pub async fn edit_picture(&self, id: i32, params: &EditPictureRequest) -> Result<()> {
+    pub async fn edit_picture(&self, id: i32, params: EditPictureRequest) -> Result<()> {
         self.put::<(), EditPictureRequest>(
             &format!("labs/{}/pictures/{}", self.lab_path, id),
             params,

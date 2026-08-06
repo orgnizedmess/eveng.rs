@@ -33,4 +33,7 @@ pub enum Error {
 
     #[error("expected data in response but got none")]
     MissingData,
+
+    #[error(transparent)]
+    Url(#[from] url::ParseError),
 }

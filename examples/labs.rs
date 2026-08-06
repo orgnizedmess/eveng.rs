@@ -1,25 +1,16 @@
-use eveng::labs::{CreateLabRequest, EditLabRequest, Lab};
-use eveng::{Client, Result};
+mod common;
 
-fn test_client() -> Client {
-    Client::new(
-        "http://192.168.0.141".to_string(),
-        "admin".to_string(),
-        "eve".to_string(),
-        "Test.unl".to_string(),
-    )
-    .unwrap()
-}
+use eveng::Result;
+use eveng::labs::{CreateLabRequest, EditLabRequest, Lab};
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
-    let client = test_client();
-    client.login().await.unwrap();
+    let client = common::test_client().await?;
 
     let path = "Test1.unl".to_string();
 
     let _resp = client
-        .add_lab(&CreateLabRequest {
+        .add_lab(CreateLabRequest {
             name: "Test1".to_string(),
             path: "/".to_string(),
             version: 1,
@@ -38,7 +29,7 @@ pub async fn main() -> Result<()> {
     client
         .edit_lab(
             &path,
-            &EditLabRequest {
+            EditLabRequest {
                 name: Some("Test2".to_string()),
                 author: None,
                 body: None,

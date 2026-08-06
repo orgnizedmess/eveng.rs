@@ -1,20 +1,11 @@
-use eveng::folders::{Folder, FolderEntry};
-use eveng::{Client, Result};
+mod common;
 
-fn test_client() -> Client {
-    Client::new(
-        "http://192.168.0.141".to_string(),
-        "admin".to_string(),
-        "eve".to_string(),
-        "Test.unl".to_string(),
-    )
-    .unwrap()
-}
+use eveng::Result;
+use eveng::folders::{Folder, FolderEntry};
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
-    let client = test_client();
-    client.login().await.unwrap();
+    let client = common::test_client().await?;
 
     // List root folder
     let resp: Folder = client.folder("").await?;
@@ -24,7 +15,7 @@ pub async fn main() -> Result<()> {
 
     // Add
     let _resp = client
-        .add_folder(&FolderEntry {
+        .add_folder(FolderEntry {
             name: name.clone(),
             path: "/".to_string(),
         })

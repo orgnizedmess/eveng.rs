@@ -58,30 +58,30 @@ pub type UserRoles = HashMap<String, String>;
 
 impl Client {
     pub async fn users(&self) -> Result<HashMap<String, User>> {
-        self.get("users/").await?.into_data()
+        self.get("/users/").await?.into_data()
     }
 
     pub async fn user(&self, username: &str) -> Result<User> {
-        self.get(&format!("users/{}", username)).await?.into_data()
+        self.get(&format!("/users/{}", username)).await?.into_data()
     }
 
-    pub async fn create_user(&self, params: &CreateUserRequest) -> Result<()> {
-        self.post::<(), CreateUserRequest>("users", params).await?;
+    pub async fn create_user(&self, params: CreateUserRequest) -> Result<()> {
+        self.post::<(), CreateUserRequest>("/users", params).await?;
         Ok(())
     }
 
-    pub async fn edit_user(&self, username: &str, params: &EditUserRequest) -> Result<()> {
-        self.put::<(), EditUserRequest>(&format!("users/{}", username), params)
+    pub async fn edit_user(&self, username: &str, params: EditUserRequest) -> Result<()> {
+        self.put::<(), EditUserRequest>(&format!("/users/{}", username), params)
             .await?;
         Ok(())
     }
 
     pub async fn delete_user(&self, username: &str) -> Result<()> {
-        self.delete::<()>(&format!("users/{}", username)).await?;
+        self.delete::<()>(&format!("/users/{}", username)).await?;
         Ok(())
     }
 
     pub async fn user_roles(&self) -> Result<UserRoles> {
-        self.get("list/roles").await?.into_data()
+        self.get("/list/roles").await?.into_data()
     }
 }

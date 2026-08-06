@@ -1,20 +1,10 @@
-use eveng::Client;
-use eveng::Result;
+mod common;
 
-fn test_client() -> Client {
-    Client::new(
-        "http://192.168.0.141".to_string(),
-        "admin".to_string(),
-        "eve".to_string(),
-        "Test.unl".to_string(),
-    )
-    .unwrap()
-}
+use eveng::Result;
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
-    let client = test_client();
-    client.login().await.unwrap();
+    let client = common::test_client().await?;
 
     eprintln!("{:#?}", client.topology().await?);
     eprintln!("{:#?}", client.links().await?);

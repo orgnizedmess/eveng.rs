@@ -29,19 +29,19 @@ pub struct EditFolderRequest {
 
 impl Client {
     pub async fn folder(&self, name: &str) -> Result<Folder> {
-        self.get(&format!("folders/{}", name)).await?.into_data()
+        self.get(&format!("/folders/{}", name)).await?.into_data()
     }
 
-    pub async fn add_folder(&self, params: &FolderEntry) -> Result<()> {
-        self.post::<(), FolderEntry>("folders", params).await?;
+    pub async fn add_folder(&self, params: FolderEntry) -> Result<()> {
+        self.post::<(), FolderEntry>("/folders", params).await?;
         Ok(())
     }
 
     // Move and/or rename
     pub async fn edit_folder(&self, src_path: &str, dest_path: &str) -> Result<()> {
         self.put::<(), EditFolderRequest>(
-            &format!("folders/{}", src_path),
-            &EditFolderRequest {
+            &format!("/folders/{}", src_path),
+            EditFolderRequest {
                 path: dest_path.to_string(),
             },
         )
@@ -50,7 +50,7 @@ impl Client {
     }
 
     pub async fn delete_folder(&self, path: &str) -> Result<()> {
-        self.delete::<()>(&format!("folders/{path}")).await?;
+        self.delete::<()>(&format!("/folders/{}", path)).await?;
         Ok(())
     }
 }
