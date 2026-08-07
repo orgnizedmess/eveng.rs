@@ -1,4 +1,4 @@
-use crate::utils::empty_vec_as_map;
+use crate::utils::{map_or_empty_seq, nested_map_or_empty_seq};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,10 +19,10 @@ pub type Topology = Vec<TopologyEntry>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Links {
-    #[serde(deserialize_with = "empty_vec_as_map")]
-    pub ethernet: HashMap<String, String>,
-    #[serde(deserialize_with = "empty_vec_as_map")]
-    pub serial: HashMap<String, HashMap<String, String>>,
+    #[serde(deserialize_with = "map_or_empty_seq")]
+    pub ethernet: HashMap<i32, String>,
+    #[serde(deserialize_with = "nested_map_or_empty_seq")]
+    pub serial: HashMap<i32, HashMap<i32, String>>,
 }
 
 impl Client {

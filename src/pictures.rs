@@ -1,5 +1,5 @@
 // kinda broken for now
-use crate::utils::number_from_string;
+use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -31,14 +31,15 @@ pub struct EditPictureRequest {
     pub custommap: Option<String>,
 }
 
-// returns Vec when empty, how to deal with that?
-pub type Pictures = HashMap<String, Picture>;
+pub type Pictures = HashMap<i32, Picture>;
 
 impl Client {
     pub async fn pictures(&self) -> Result<Pictures> {
-        self.get(&format!("/labs/{}/pictures", self.lab_path))
+        Ok(self
+            .get::<WireMap<i32, Picture>>(&format!("/labs/{}/pictures", self.lab_path))
             .await?
-            .into_data()
+            .into_data()?
+            .0)
     }
 
     pub async fn picture(&self, id: i32) -> Result<Picture> {

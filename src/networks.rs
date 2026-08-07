@@ -1,4 +1,4 @@
-use crate::utils::number_from_string;
+use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ pub struct Network {
     pub visibility: i32,
 }
 
-pub type Networks = HashMap<String, Network>;
+pub type Networks = HashMap<i32, Network>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateNetworkRequest {
@@ -83,9 +83,11 @@ pub type NetworkTypes = HashMap<String, String>;
 
 impl Client {
     pub async fn networks(&self) -> Result<Networks> {
-        self.get(&format!("/labs/{}/networks", self.lab_path))
+        Ok(self
+            .get::<WireMap<i32, Network>>(&format!("/labs/{}/networks", self.lab_path))
             .await?
-            .into_data()
+            .into_data()?
+            .0)
     }
 
     pub async fn network(&self, id: i32) -> Result<Network> {
@@ -119,6 +121,10 @@ impl Client {
     }
 
     pub async fn network_types(&self) -> Result<NetworkTypes> {
-        self.get("/list/networks").await?.into_data()
+        Ok(self
+            .get::<WireMap<String, String>>("/list/networks")
+            .await?
+            .into_data()?
+            .0)
     }
 }
