@@ -1,4 +1,4 @@
-use crate::utils::number_from_string;
+use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -54,11 +54,16 @@ pub struct EditUserRequest {
     pub expiration: Option<i32>,
 }
 
+pub type Users = HashMap<String, User>;
 pub type UserRoles = HashMap<String, String>;
 
 impl Client {
-    pub async fn users(&self) -> Result<HashMap<String, User>> {
-        self.get("/users/").await?.into_data()
+    pub async fn users(&self) -> Result<Users> {
+        Ok(self
+            .get::<WireMap<String, User>>("/users/")
+            .await?
+            .into_data()?
+            .0)
     }
 
     pub async fn user(&self, username: &str) -> Result<User> {
@@ -82,6 +87,10 @@ impl Client {
     }
 
     pub async fn user_roles(&self) -> Result<UserRoles> {
-        self.get("/list/roles").await?.into_data()
+        Ok(self
+            .get::<WireMap<String, String>>("/list/roles")
+            .await?
+            .into_data()?
+            .0)
     }
 }

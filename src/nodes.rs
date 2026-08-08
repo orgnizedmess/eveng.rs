@@ -1,4 +1,4 @@
-use crate::utils::number_from_string;
+use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ pub struct Node {
     pub uuid: Option<String>,
 }
 
-pub type Nodes = HashMap<String, Node>;
+pub type Nodes = HashMap<i32, Node>;
 
 #[derive(Debug, Serialize)]
 pub struct CreateNodeRequest {
@@ -155,9 +155,11 @@ pub type Templates = HashMap<String, String>;
 
 impl Client {
     pub async fn nodes(&self) -> Result<Nodes> {
-        self.get(&format!("/labs/{}/nodes", self.lab_path))
+        Ok(self
+            .get::<WireMap<i32, Node>>(&format!("/labs/{}/nodes", self.lab_path))
             .await?
-            .into_data()
+            .into_data()?
+            .0)
     }
 
     pub async fn node(&self, id: i32) -> Result<Node> {
@@ -255,7 +257,11 @@ impl Client {
     }
 
     pub async fn node_templates(&self) -> Result<Templates> {
-        self.get("/list/templates/").await?.into_data()
+        Ok(self
+            .get::<WireMap<String, String>>("/list/templates/")
+            .await?
+            .into_data()?
+            .0)
     }
 
     pub async fn node_template(&self, template: &str) -> Result<Template> {
