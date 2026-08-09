@@ -3,9 +3,10 @@ use crate::{Error, Result};
 use reqwest::{Method, Url};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
 
-/// Client for the EVE-NG API
+/// Main client for the EVE-NG API
 ///
 /// # Example
 ///
@@ -14,19 +15,90 @@ use std::time::Duration;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = Client::new("http://localhost", "Test.unl")?
+/// let client = Client::builder("http://eveng.example.com", "Test.unl")?
 ///     .login("admin", "eve")
 ///     .await?;
-/// client.nodes().await?;
+/// client.system_status().await?;
 /// #   Ok(())
 /// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct Client {
-    pub(crate) base_url: Url,
-    pub(crate) client: reqwest::Client,
-    timeout: Duration,
+    pub(crate) base_url: Arc<Url>,
+    pub(crate) api: reqwest::Client,
     pub(crate) lab_path: String,
+}
+
+#[derive(Debug)]
+pub struct ClientBuilder {
+    base_url: Arc<Url>,
+    lab_path: String,
+    timeout: Duration,
+    ssl_verify: bool,
+    html5: u8,
+}
+
+impl ClientBuilder {
+    pub fn new(base_url: impl AsRef<str>, lab_path: impl Into<String>) -> Result<Self> {
+        Ok(Self {
+            base_url: Arc::new(Url::parse(base_url.as_ref())?),
+            lab_path: lab_path.into(),
+            timeout: Duration::from_secs(10),
+            ssl_verify: true,
+            html5: 1,
+        })
+    }
+
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    pub fn ssl_verify(mut self, ssl_verify: bool) -> Self {
+        self.ssl_verify = ssl_verify;
+        self
+    }
+
+    pub fn html5(mut self, html5: u8) -> Self {
+        self.html5 = html5;
+        self
+    }
+
+    pub async fn login(
+        &self,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Result<Client> {
+        let client = Client {
+            base_url: self.base_url.clone(),
+            lab_path: self.lab_path.clone(),
+            api: reqwest::Client::builder()
+                .cookie_store(true)
+                .timeout(self.timeout)
+                .danger_accept_invalid_certs(!self.ssl_verify)
+                .build()?,
+        };
+
+        #[derive(Serialize)]
+        struct LoginRequest {
+            username: String,
+            password: String,
+            html5: u8,
+        }
+
+        let _: Response<()> = client
+            .post(
+                "auth/login",
+                LoginRequest {
+                    username: username.into(),
+                    password: password.into(),
+                    html5: self.html5,
+                },
+            )
+            .await?;
+
+        Ok(client)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -72,60 +144,21 @@ pub struct AuthInfo {
 }
 
 impl Client {
-    pub fn new(base_url: impl AsRef<str>, lab_path: impl Into<String>) -> Result<Self> {
-        Ok(Self {
-            base_url: Url::parse(base_url.as_ref())?,
-            client: reqwest::Client::new(),
-            timeout: Duration::from_secs(10),
-            lab_path: lab_path.into(),
-        })
-    }
-
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
-    pub async fn login(
-        &mut self,
-        username: impl Into<String>,
-        password: impl Into<String>,
-    ) -> Result<Self> {
-        self.client = reqwest::Client::builder()
-            .timeout(self.timeout)
-            .cookie_store(true)
-            .build()?;
-
-        #[derive(Serialize)]
-        struct LoginRequest {
-            username: String,
-            password: String,
-            html5: i32,
-        }
-
-        self.post::<(), LoginRequest>(
-            "/auth/login",
-            LoginRequest {
-                username: username.into(),
-                password: password.into(),
-                html5: 1,
-            },
-        )
-        .await?;
-        Ok(self.clone())
+    pub fn builder(base_url: impl AsRef<str>, lab_path: impl Into<String>) -> Result<ClientBuilder> {
+        Ok(ClientBuilder::new(base_url, lab_path)?)
     }
 
     pub async fn auth_info(&self) -> Result<AuthInfo> {
-        self.get("/auth").await?.into_data()
+        self.get("auth").await?.into_data()
     }
 
     pub async fn logout(&self) -> Result<()> {
-        self.get::<()>("/auth/logout").await?;
+        self.get::<()>("auth/logout").await?;
         Ok(())
     }
 
     pub async fn system_status(&self) -> Result<SystemStatus> {
-        self.get("/status").await?.into_data()
+        self.get("status").await?.into_data()
     }
 
     pub async fn request<T, B>(
@@ -138,8 +171,8 @@ impl Client {
         T: DeserializeOwned,
         B: Serialize,
     {
-        let uri = self.base_url.join(&format!("/api{}", endpoint))?;
-        let mut request = self.client.request(method, uri);
+        let url = self.base_url.join(&format!("api/{}", endpoint))?;
+        let mut request = self.api.request(method, url);
 
         if let Some(body) = body {
             request = request.json(&body);
@@ -202,11 +235,38 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{Client, Error, Result};
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{method, path},
     };
+
+    #[test]
+    fn test_client_builder() -> Result<()> {
+        let builder = ClientBuilder::new("http://eveng.example.com", "Test.unl")?;
+
+        assert_eq!(builder.base_url.as_str().trim_end_matches("/"), "http://eveng.example.com");
+        assert_eq!(builder.timeout, Duration::from_secs(10));
+        assert_eq!(builder.html5, 1);
+        assert!(builder.ssl_verify);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_builder_methods() -> Result<()> {
+        let builder = ClientBuilder::new("http://eveng.example.com", "Test.unl")?
+            .timeout(Duration::from_secs(30))
+            .ssl_verify(false)
+            .html5(0);
+
+        assert_eq!(builder.timeout, Duration::from_secs(30));
+        assert_eq!(builder.html5, 0);
+        assert!(!builder.ssl_verify);
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_bad_gateway_response() -> Result<()> {
@@ -232,7 +292,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = Client::new(server.uri(), "test.unl")?
+        let client = Client::builder(server.uri(), "Test.unl")?
             .login("admin", "eve")
             .await;
         let err = client.unwrap_err();

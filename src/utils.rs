@@ -109,6 +109,7 @@ where
 mod tests {
     use super::*;
     use serde::Deserialize;
+    use crate::Result;
 
     #[derive(Debug, Deserialize)]
     struct Item {
@@ -162,11 +163,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn empty_lab_yields_no_nodes() {
+    async fn empty_lab_yields_no_nodes() -> Result<()> {
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/auth/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                r#"{"code": 200, "message": "User logged in (90013).", "status": "success"}"#,
+            ))
+            .mount(&server)
+            .await;
         Mock::given(method("GET"))
             .and(path("/api/labs/Test.unl/nodes"))
             .respond_with(ResponseTemplate::new(200).set_body_string(
@@ -175,8 +183,9 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = crate::Client::new(server.uri(), "Test.unl").unwrap();
-        assert!(client.nodes().await.unwrap().is_empty());
+        let client = crate::Client::builder(server.uri(), "Test.unl")?.login("admin", "eve").await?;
+        assert!(client.nodes().await?.is_empty());
+        Ok(())
     }
 
     #[test]

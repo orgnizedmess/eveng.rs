@@ -51,7 +51,7 @@ impl Client {
     // Not checking for API errors yet
     pub async fn picture_data(&self, id: i32, width: i32, height: i32) -> Result<Vec<u8>> {
         let resp = self
-            .client
+            .api
             .get(format!(
                 "{}/api/labs/{}/pictures/{}/data/{}/{}",
                 self.base_url, self.lab_path, id, width, height
@@ -72,7 +72,7 @@ impl Client {
             .part("file", part); // field name likely doesn't matter — PHP iterates all of $_FILES
 
         let _response = self
-            .client
+            .api
             .post(format!(
                 "{}/api/labs/{}/pictures",
                 self.base_url, self.lab_path

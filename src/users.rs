@@ -60,35 +60,35 @@ pub type UserRoles = HashMap<String, String>;
 impl Client {
     pub async fn users(&self) -> Result<Users> {
         Ok(self
-            .get::<WireMap<String, User>>("/users/")
+            .get::<WireMap<String, User>>("users/")
             .await?
             .into_data()?
             .0)
     }
 
     pub async fn user(&self, username: &str) -> Result<User> {
-        self.get(&format!("/users/{}", username)).await?.into_data()
+        self.get(&format!("users/{}", username)).await?.into_data()
     }
 
     pub async fn create_user(&self, params: CreateUserRequest) -> Result<()> {
-        self.post::<(), CreateUserRequest>("/users", params).await?;
+        self.post::<(), CreateUserRequest>("users", params).await?;
         Ok(())
     }
 
     pub async fn edit_user(&self, username: &str, params: EditUserRequest) -> Result<()> {
-        self.put::<(), EditUserRequest>(&format!("/users/{}", username), params)
+        self.put::<(), EditUserRequest>(&format!("users/{}", username), params)
             .await?;
         Ok(())
     }
 
     pub async fn delete_user(&self, username: &str) -> Result<()> {
-        self.delete::<()>(&format!("/users/{}", username)).await?;
+        self.delete::<()>(&format!("users/{}", username)).await?;
         Ok(())
     }
 
     pub async fn user_roles(&self) -> Result<UserRoles> {
         Ok(self
-            .get::<WireMap<String, String>>("/list/roles")
+            .get::<WireMap<String, String>>("list/roles")
             .await?
             .into_data()?
             .0)

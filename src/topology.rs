@@ -27,13 +27,13 @@ pub struct Links {
 
 impl Client {
     pub async fn topology(&self) -> Result<Topology> {
-        self.get(&format!("/labs/{}/topology", self.lab_path))
+        self.get(&format!("labs/{}/topology", self.lab_path))
             .await?
             .into_data()
     }
     // Part of labs API in source code
     pub async fn links(&self) -> Result<Links> {
-        self.get(&format!("/labs/{}/links", self.lab_path))
+        self.get(&format!("labs/{}/links", self.lab_path))
             .await?
             .into_data()
     }
