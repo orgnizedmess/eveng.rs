@@ -89,7 +89,7 @@ impl ClientBuilder {
         let _: Response<()> = client
             .post(
                 "auth/login",
-                LoginRequest {
+                &LoginRequest {
                     username: username.into(),
                     password: password.into(),
                     html5: self.html5,
@@ -144,7 +144,10 @@ pub struct AuthInfo {
 }
 
 impl Client {
-    pub fn builder(base_url: impl AsRef<str>, lab_path: impl Into<String>) -> Result<ClientBuilder> {
+    pub fn builder(
+        base_url: impl AsRef<str>,
+        lab_path: impl Into<String>,
+    ) -> Result<ClientBuilder> {
         Ok(ClientBuilder::new(base_url, lab_path)?)
     }
 
@@ -165,7 +168,7 @@ impl Client {
         &self,
         method: Method,
         endpoint: &str,
-        body: Option<B>,
+        body: Option<&B>,
     ) -> Result<Response<T>>
     where
         T: DeserializeOwned,
@@ -175,7 +178,7 @@ impl Client {
         let mut request = self.api.request(method, url);
 
         if let Some(body) = body {
-            request = request.json(&body);
+            request = request.json(body);
         }
 
         let response = request.send().await?;
@@ -198,7 +201,6 @@ impl Client {
         }
 
         Ok(response.json::<Response<T>>().await?)
-
     }
 
     pub async fn get<T>(&self, endpoint: &str) -> Result<Response<T>>
@@ -208,20 +210,20 @@ impl Client {
         self.request::<T, ()>(Method::GET, endpoint, None).await
     }
 
-    pub async fn post<T, B>(&self, endpoint: &str, body: B) -> Result<Response<T>>
+    pub async fn post<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
     where
         T: DeserializeOwned,
         B: Serialize,
     {
-        self.request(Method::POST, endpoint, Some(&body)).await
+        self.request(Method::POST, endpoint, Some(body)).await
     }
 
-    pub async fn put<T, B>(&self, endpoint: &str, body: B) -> Result<Response<T>>
+    pub async fn put<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
     where
         T: DeserializeOwned,
         B: Serialize,
     {
-        self.request(Method::PUT, endpoint, Some(&body)).await
+        self.request(Method::PUT, endpoint, Some(body)).await
     }
 
     pub async fn delete<T>(&self, endpoint: &str) -> Result<Response<T>>
@@ -245,7 +247,10 @@ mod tests {
     fn test_client_builder() -> Result<()> {
         let builder = ClientBuilder::new("http://eveng.example.com", "Test.unl")?;
 
-        assert_eq!(builder.base_url.as_str().trim_end_matches("/"), "http://eveng.example.com");
+        assert_eq!(
+            builder.base_url.as_str().trim_end_matches("/"),
+            "http://eveng.example.com"
+        );
         assert_eq!(builder.timeout, Duration::from_secs(10));
         assert_eq!(builder.html5, 1);
         assert!(builder.ssl_verify);
@@ -297,7 +302,11 @@ mod tests {
         let err = client.unwrap_err();
 
         match err {
-            Error::Api { code, status, message } => {
+            Error::Api {
+                code,
+                status,
+                message,
+            } => {
                 assert_eq!(code, 502);
                 assert_eq!(status, "error".to_string());
                 assert!(message.contains("502 Bad Gateway"));

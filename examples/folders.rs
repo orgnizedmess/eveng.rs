@@ -15,7 +15,7 @@ pub async fn main() -> Result<()> {
 
     // Add
     let _resp = client
-        .add_folder(FolderEntry {
+        .add_folder(&FolderEntry {
             name: name.clone(),
             path: "/".to_string(),
         })

@@ -168,7 +168,7 @@ impl Client {
             .into_data()
     }
 
-    pub async fn add_node(&self, params: CreateNodeRequest) -> Result<CreateNodeResponse> {
+    pub async fn add_node(&self, params: &CreateNodeRequest) -> Result<CreateNodeResponse> {
         self.post::<CreateNodeResponse, CreateNodeRequest>(
             &format!("labs/{}/nodes", self.lab_path),
             params,
@@ -177,7 +177,7 @@ impl Client {
         .into_data()
     }
 
-    pub async fn edit_node(&self, id: i32, params: EditNodeRequest) -> Result<()> {
+    pub async fn edit_node(&self, id: i32, params: &EditNodeRequest) -> Result<()> {
         self.put::<(), EditNodeRequest>(&format!("labs/{}/nodes/{}", self.lab_path, id), params)
             .await?;
         Ok(())
@@ -247,7 +247,7 @@ impl Client {
     }
 
     // Would connect_interface be a better name?
-    pub async fn edit_interface(&self, node_id: i32, params: EditInterfaceRequest) -> Result<()> {
+    pub async fn edit_interface(&self, node_id: i32, params: &EditInterfaceRequest) -> Result<()> {
         self.put::<(), EditInterfaceRequest>(
             &format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id),
             params,

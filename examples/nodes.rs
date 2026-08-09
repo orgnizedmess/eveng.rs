@@ -15,7 +15,7 @@ pub async fn main() -> Result<()> {
 
     // Create
     let resp: CreateNodeResponse = client
-        .add_node(CreateNodeRequest {
+        .add_node(&CreateNodeRequest {
             template: "vpcs".to_string(),
             count: 1,
             name: "VPC".to_string(),
@@ -38,7 +38,7 @@ pub async fn main() -> Result<()> {
     client
         .edit_node(
             id,
-            EditNodeRequest {
+            &EditNodeRequest {
                 config: None,
                 delay: None,
                 icon: None,

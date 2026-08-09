@@ -12,7 +12,7 @@ pub async fn main() -> Result<()> {
 
     // Add
     let resp: eveng::networks::CreateNetworkResponse = client
-        .add_network(CreateNetworkRequest {
+        .add_network(&CreateNetworkRequest {
             count: 1,
             visibility: 1,
             name: None,
@@ -34,7 +34,7 @@ pub async fn main() -> Result<()> {
     client
         .edit_network(
             id,
-            EditNetworkRequest {
+            &EditNetworkRequest {
                 name: Some("vmbr0".to_string()),
                 network_type: None,
                 icon: None,

@@ -32,7 +32,7 @@ impl Client {
         self.get(&format!("folders/{}", name)).await?.into_data()
     }
 
-    pub async fn add_folder(&self, params: FolderEntry) -> Result<()> {
+    pub async fn add_folder(&self, params: &FolderEntry) -> Result<()> {
         self.post::<(), FolderEntry>("folders", params).await?;
         Ok(())
     }
@@ -41,7 +41,7 @@ impl Client {
     pub async fn edit_folder(&self, src_path: &str, dest_path: &str) -> Result<()> {
         self.put::<(), EditFolderRequest>(
             &format!("folders/{}", src_path),
-            EditFolderRequest {
+            &EditFolderRequest {
                 path: dest_path.to_string(),
             },
         )

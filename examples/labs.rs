@@ -10,7 +10,7 @@ pub async fn main() -> Result<()> {
     let path = "Test1.unl".to_string();
 
     let _resp = client
-        .add_lab(CreateLabRequest {
+        .add_lab(&CreateLabRequest {
             name: "Test1".to_string(),
             path: "/".to_string(),
             version: 1,
@@ -29,7 +29,7 @@ pub async fn main() -> Result<()> {
     client
         .edit_lab(
             &path,
-            EditLabRequest {
+            &EditLabRequest {
                 name: Some("Test2".to_string()),
                 author: None,
                 body: None,

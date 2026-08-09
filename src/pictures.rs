@@ -86,7 +86,7 @@ impl Client {
 
     // Editing an image map doesn't make much sense as an API call?
     // Untested
-    pub async fn edit_picture(&self, id: i32, params: EditPictureRequest) -> Result<()> {
+    pub async fn edit_picture(&self, id: i32, params: &EditPictureRequest) -> Result<()> {
         self.put::<(), EditPictureRequest>(
             &format!("labs/{}/pictures/{}", self.lab_path, id),
             params,

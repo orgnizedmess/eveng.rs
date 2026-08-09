@@ -69,12 +69,12 @@ impl Client {
         self.get(&format!("labs/{}", path)).await?.into_data()
     }
 
-    pub async fn add_lab(&self, params: CreateLabRequest) -> Result<()> {
+    pub async fn add_lab(&self, params: &CreateLabRequest) -> Result<()> {
         self.post::<(), CreateLabRequest>("labs", params).await?;
         Ok(())
     }
 
-    pub async fn edit_lab(&self, path: &str, params: EditLabRequest) -> Result<()> {
+    pub async fn edit_lab(&self, path: &str, params: &EditLabRequest) -> Result<()> {
         self.put::<(), EditLabRequest>(&format!("labs/{}", path), params)
             .await?;
         Ok(())
@@ -84,7 +84,7 @@ impl Client {
     pub async fn move_lab(&self, src_path: &str, dest_path: &str) -> Result<()> {
         self.put::<(), MoveLabRequest>(
             &format!("labs/{}/move", src_path),
-            MoveLabRequest {
+            &MoveLabRequest {
                 dest_path: dest_path.to_string(),
             },
         )

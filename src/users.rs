@@ -70,12 +70,12 @@ impl Client {
         self.get(&format!("users/{}", username)).await?.into_data()
     }
 
-    pub async fn create_user(&self, params: CreateUserRequest) -> Result<()> {
+    pub async fn create_user(&self, params: &CreateUserRequest) -> Result<()> {
         self.post::<(), CreateUserRequest>("users", params).await?;
         Ok(())
     }
 
-    pub async fn edit_user(&self, username: &str, params: EditUserRequest) -> Result<()> {
+    pub async fn edit_user(&self, username: &str, params: &EditUserRequest) -> Result<()> {
         self.put::<(), EditUserRequest>(&format!("users/{}", username), params)
             .await?;
         Ok(())

@@ -96,7 +96,10 @@ impl Client {
             .into_data()
     }
 
-    pub async fn add_network(&self, params: CreateNetworkRequest) -> Result<CreateNetworkResponse> {
+    pub async fn add_network(
+        &self,
+        params: &CreateNetworkRequest,
+    ) -> Result<CreateNetworkResponse> {
         self.post::<CreateNetworkResponse, CreateNetworkRequest>(
             &format!("labs/{}/networks", self.lab_path),
             params,
@@ -105,7 +108,7 @@ impl Client {
         .into_data()
     }
 
-    pub async fn edit_network(&self, id: i32, params: EditNetworkRequest) -> Result<()> {
+    pub async fn edit_network(&self, id: i32, params: &EditNetworkRequest) -> Result<()> {
         self.put::<(), EditNetworkRequest>(
             &format!("labs/{}/networks/{}", self.lab_path, id),
             params,

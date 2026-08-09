@@ -2,10 +2,10 @@ use serde::de::{self, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::str::FromStr;
-use std::fmt::Display;
 
 pub(crate) fn number_from_string<'de, T, D>(deserializer: D) -> std::result::Result<T, D::Error>
 where
@@ -112,8 +112,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde::Deserialize;
     use crate::Result;
+    use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
     struct Item {
@@ -187,7 +187,9 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = crate::Client::builder(server.uri(), "Test.unl")?.login("admin", "eve").await?;
+        let client = crate::Client::builder(server.uri(), "Test.unl")?
+            .login("admin", "eve")
+            .await?;
         assert!(client.nodes().await?.is_empty());
         Ok(())
     }
