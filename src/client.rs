@@ -104,7 +104,7 @@ impl ClientBuilder {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Response<T> {
     #[serde(deserialize_with = "number_from_string")]
-    pub code: i32,
+    pub code: u16,
     pub status: String,
     pub message: String,
     #[serde(default = "Option::default")]
@@ -180,26 +180,25 @@ impl Client {
 
         let response = request.send().await?;
         let status = response.status();
-        let text = response.text().await?;
 
         if !status.is_success() {
-            return Err(Error::Http {
-                code: status,
-                body: text,
+            let text = response.text().await?;
+            return Err(match serde_json::from_str::<Response<()>>(&text) {
+                Ok(api) => Error::Api {
+                    code: api.code,
+                    status: api.status,
+                    message: api.message,
+                },
+                Err(_) => Error::Api {
+                    code: status.into(),
+                    status: "error".to_string(),
+                    message: text.chars().take(200).collect(),
+                },
             });
         }
 
-        let response: Response<T> = serde_json::from_str(&text)?;
+        Ok(response.json::<Response<T>>().await?)
 
-        match response.code {
-            200..=299 => Ok(response),
-            _ => Err(Error::Api {
-                code: response.code,
-                status: response.status.to_string(),
-                message: response.message.to_string(),
-                body: text,
-            }),
-        }
     }
 
     pub async fn get<T>(&self, endpoint: &str) -> Result<Response<T>>
@@ -298,9 +297,10 @@ mod tests {
         let err = client.unwrap_err();
 
         match err {
-            Error::Http { code, body } => {
+            Error::Api { code, status, message } => {
                 assert_eq!(code, 502);
-                assert!(body.contains("502 Bad Gateway"));
+                assert_eq!(status, "error".to_string());
+                assert!(message.contains("502 Bad Gateway"));
             }
             other => panic!("expected HTTP error, got {other:?}"),
         }

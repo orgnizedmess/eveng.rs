@@ -4,23 +4,27 @@ use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::str::FromStr;
+use std::fmt::Display;
 
-pub(crate) fn number_from_string<'de, D>(deserializer: D) -> std::result::Result<i32, D::Error>
+pub(crate) fn number_from_string<'de, T, D>(deserializer: D) -> std::result::Result<T, D::Error>
 where
     D: Deserializer<'de>,
+    T: FromStr + Deserialize<'de>,
+    <T as FromStr>::Err: Display,
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum StringOrNumber {
+    enum StringOrNumber<T> {
         String(String),
-        Number(i32),
+        Number(T),
     }
 
     let value = StringOrNumber::deserialize(deserializer)?;
 
     match value {
         StringOrNumber::Number(n) => Ok(n),
-        StringOrNumber::String(s) => s.parse::<i32>().map_err(de::Error::custom),
+        StringOrNumber::String(s) => s.parse::<T>().map_err(de::Error::custom),
     }
 }
 

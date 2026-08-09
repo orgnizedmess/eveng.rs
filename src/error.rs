@@ -4,36 +4,25 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// main error type
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error(transparent)]
-    Reqwest(#[from] reqwest::Error),
+    #[error("HTTP request error: {0}")]
+    Http(#[from] reqwest::Error),
 
-    #[error("HTTP error: {code} {body}")]
-    Http {
-        /// http status code
-        code: reqwest::StatusCode,
-        /// response body
-        body: String,
-    },
-
-    #[error(transparent)]
+    #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
-    /// api returned an error response
     #[error("EVE-NG API error (status {status}): {message}")]
     Api {
-        /// http status code
-        code: i32,
-        /// http status message
+        /// HTTP status code
+        code: u16,
+        /// API Status message (success, unauthorized, forbidden, fail, error)
         status: String,
-        /// error message from api
+        /// Error message from API
         message: String,
-        /// response body
-        body: String,
     },
 
     #[error("expected data in response but got none")]
     MissingData,
 
-    #[error(transparent)]
+    #[error("Error while parsing an URL: {0:#?}")]
     Url(#[from] url::ParseError),
 }
