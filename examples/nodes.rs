@@ -1,21 +1,20 @@
 mod common;
 
 use eveng::Result;
-use eveng::nodes::{
-    CreateNodeRequest, CreateNodeResponse, EditNodeRequest, NodeType, Nodes, VpcsParams,
-};
+use eveng::nodes::{CreateNodeRequest, EditNodeRequest, NodeType, VpcsParams};
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
+    let nodes = client.folder("/").lab("kimpfler-test.unl").nodes();
 
     // List
-    let resp: Nodes = client.nodes().await?;
+    let resp = nodes.list().await?;
     eprintln!("{:#?}", resp);
 
     // Create
-    let resp: CreateNodeResponse = client
-        .add_node(&CreateNodeRequest {
+    let node = nodes
+        .add(&CreateNodeRequest {
             template: "vpcs".to_string(),
             count: 1,
             name: "VPC".to_string(),
@@ -29,36 +28,32 @@ pub async fn main() -> Result<()> {
         })
         .await?;
 
-    let id = resp.id;
-
     // Before
-    client.node(id).await?;
+    let resp = node.get().await?;
+    eprintln!("{:#?}", resp);
 
     // Edit
-    client
-        .edit_node(
-            id,
-            &EditNodeRequest {
-                config: None,
-                delay: None,
-                icon: None,
-                left: None,
-                name: Some("PC1".to_string()),
-                top: None,
-                node_type: None,
-            },
-        )
-        .await?;
+    node.edit(&EditNodeRequest {
+        config: None,
+        delay: None,
+        icon: None,
+        left: None,
+        name: Some("PC1".to_string()),
+        top: None,
+        node_type: None,
+    })
+    .await?;
 
     // After
-    client.node(id).await?;
+    let resp = node.get().await?;
+    eprintln!("{:#?}", resp);
 
     // List interfaces
-    let resp = client.interfaces(id).await?;
+    let resp = node.interfaces().await?;
     eprintln!("{:#?}", resp);
 
     // Delete
-    client.delete_node(id).await?;
+    node.delete().await?;
 
     client.logout().await?;
     Ok(())

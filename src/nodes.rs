@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
-pub struct Node {
+pub struct NodeInfo {
     #[serde(deserialize_with = "number_from_string")]
     pub config: i32,
     pub console: String,
@@ -25,8 +25,6 @@ pub struct Node {
     pub url: String,
     pub uuid: Option<String>,
 }
-
-pub type Nodes = HashMap<i32, Node>;
 
 #[derive(Debug, Serialize)]
 pub struct CreateNodeRequest {
@@ -141,132 +139,145 @@ pub struct Interfaces {
 // this alone doesn't explain what type is for what
 pub type EditInterfaceRequest = HashMap<i32, i32>;
 
-#[derive(Serialize, Deserialize)]
-pub struct Template {
-    description: String,
-    options: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    qemu: Option<serde_json::Value>,
-    #[serde(rename = "type")]
-    template_type: String,
+pub struct Nodes {
+    client: Client,
+    path: String,
 }
 
-pub type Templates = HashMap<String, String>;
+impl Nodes {
+    pub fn new(client: Client, path: &str) -> Self {
+        Self {
+            client,
+            path: path.to_string(),
+        }
+    }
 
-impl Client {
-    pub async fn nodes(&self) -> Result<Nodes> {
+    pub async fn list(&self) -> Result<HashMap<i32, NodeInfo>> {
         Ok(self
-            .get::<WireMap<i32, Node>>(&format!("labs/{}/nodes", self.lab_path))
+            .client
+            .get::<WireMap<i32, NodeInfo>>(&format!("labs/{}/nodes", self.path))
             .await?
             .into_data()?
             .0)
     }
 
-    pub async fn node(&self, id: i32) -> Result<Node> {
-        self.get(&format!("labs/{}/nodes/{}", self.lab_path, id))
+    pub async fn add(&self, params: &CreateNodeRequest) -> Result<Node> {
+        let resp: CreateNodeResponse = self
+            .client
+            .post(&format!("labs/{}/nodes", self.path), params)
+            .await?
+            .into_data()?;
+        Ok(Node::new(self.client.clone(), &self.path, resp.id))
+    }
+
+    pub async fn start(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/start", self.path))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/stop", self.path))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn wipe(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/wipe", self.path))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn export(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/export", self.path))
+            .await?;
+        Ok(())
+    }
+}
+
+pub struct Node {
+    client: Client,
+    path: String,
+    id: i32,
+}
+
+impl Node {
+    pub fn new(client: Client, path: &str, id: i32) -> Self {
+        Self {
+            client,
+            path: path.to_string(),
+            id,
+        }
+    }
+
+    pub async fn get(&self) -> Result<NodeInfo> {
+        self.client
+            .get(&format!("labs/{}/nodes/{}", self.path, self.id))
             .await?
             .into_data()
     }
 
-    pub async fn add_node(&self, params: &CreateNodeRequest) -> Result<CreateNodeResponse> {
-        self.post::<CreateNodeResponse, CreateNodeRequest>(
-            &format!("labs/{}/nodes", self.lab_path),
-            params,
-        )
-        .await?
-        .into_data()
-    }
-
-    pub async fn edit_node(&self, id: i32, params: &EditNodeRequest) -> Result<()> {
-        self.put::<(), EditNodeRequest>(&format!("labs/{}/nodes/{}", self.lab_path, id), params)
+    pub async fn edit(&self, params: &EditNodeRequest) -> Result<()> {
+        self.client
+            .put::<(), EditNodeRequest>(&format!("labs/{}/nodes/{}", self.path, self.id), params)
             .await?;
         Ok(())
     }
 
-    pub async fn start_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/start", self.lab_path))
+    pub async fn delete(&self) -> Result<()> {
+        self.client
+            .delete::<()>(&format!("labs/{}/nodes/{}", self.path, self.id))
             .await?;
         Ok(())
     }
 
-    pub async fn start_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/start", self.lab_path, id))
+    pub async fn start(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/{}/start", self.path, self.id))
             .await?;
         Ok(())
     }
 
-    pub async fn stop_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/stop", self.lab_path))
+    pub async fn stop(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/{}/stop", self.path, self.id))
             .await?;
         Ok(())
     }
 
-    pub async fn stop_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/stop", self.lab_path, id))
+    pub async fn wipe(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/{}/wipe", self.path, self.id))
             .await?;
         Ok(())
     }
 
-    pub async fn wipe_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/wipe", self.lab_path))
+    pub async fn export(&self) -> Result<()> {
+        self.client
+            .get::<()>(&format!("labs/{}/nodes/{}/export", self.path, self.id))
             .await?;
         Ok(())
     }
 
-    pub async fn wipe_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/wipe", self.lab_path, id))
-            .await?;
-        Ok(())
-    }
-
-    pub async fn export_nodes(&self) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/export", self.lab_path))
-            .await?;
-        Ok(())
-    }
-
-    pub async fn export_node(&self, id: i32) -> Result<()> {
-        self.get::<()>(&format!("labs/{}/nodes/{}/export", self.lab_path, id))
-            .await?;
-        Ok(())
-    }
-
-    pub async fn delete_node(&self, id: i32) -> Result<()> {
-        self.delete::<()>(&format!("labs/{}/nodes/{}", self.lab_path, id))
-            .await?;
-        Ok(())
-    }
-
-    pub async fn interfaces(&self, node_id: i32) -> Result<Interfaces> {
-        self.get(&format!(
-            "labs/{}/nodes/{}/interfaces",
-            self.lab_path, node_id
-        ))
-        .await?
-        .into_data()
+    pub async fn interfaces(&self) -> Result<Interfaces> {
+        self.client
+            .get(&format!("labs/{}/nodes/{}/interfaces", self.path, self.id))
+            .await?
+            .into_data()
     }
 
     // Would connect_interface be a better name?
-    pub async fn edit_interface(&self, node_id: i32, params: &EditInterfaceRequest) -> Result<()> {
-        self.put::<(), EditInterfaceRequest>(
-            &format!("labs/{}/nodes/{}/interfaces", self.lab_path, node_id),
-            params,
-        )
-        .await?;
+    pub async fn edit_interface(&self, params: &EditInterfaceRequest) -> Result<()> {
+        self.client
+            .put::<(), EditInterfaceRequest>(
+                &format!("labs/{}/nodes/{}/interfaces", self.path, self.id),
+                params,
+            )
+            .await?;
         Ok(())
-    }
-
-    pub async fn node_templates(&self) -> Result<Templates> {
-        Ok(self
-            .get::<WireMap<String, String>>("list/templates/")
-            .await?
-            .into_data()?
-            .0)
-    }
-
-    pub async fn node_template(&self, template: &str) -> Result<Template> {
-        self.get(&format!("list/templates/{}", template))
-            .await?
-            .into_data()
     }
 }

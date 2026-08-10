@@ -1,41 +1,38 @@
 mod common;
 
 use eveng::Result;
-use eveng::folders::{Folder, FolderEntry};
+use eveng::folders::FolderEntry;
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
 
     // List root folder
-    let resp: Folder = client.folder("").await?;
+    let resp = client.folder("/").list().await?;
     eprintln!("{}", serde_json::to_string_pretty(&resp).unwrap());
 
-    let name = "New Folder".to_string();
-
     // Add
-    let _resp = client
-        .add_folder(&FolderEntry {
-            name: name.clone(),
+    let mut folder = client
+        .folders()
+        .add(&FolderEntry {
+            name: "New Folder".to_string(),
             path: "/".to_string(),
         })
         .await?;
 
     // Before
-    let resp: Folder = client.folder("").await?;
+    let resp = folder.list().await?;
     eprintln!("{}", serde_json::to_string_pretty(&resp).unwrap());
 
     // Edit
-    client.edit_folder(&name, "/Test Folder").await?;
-
-    let name = "Test Folder".to_string();
+    folder.edit("/Test Folder").await?;
 
     // After
-    let resp: Folder = client.folder("").await?;
+    let resp = folder.list().await?;
     eprintln!("{}", serde_json::to_string_pretty(&resp).unwrap());
 
     // Delete
-    client.delete_folder(&name).await?;
+    folder.delete().await?;
 
     client.logout().await?;
     Ok(())

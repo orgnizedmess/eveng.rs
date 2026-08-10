@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
-pub struct User {
+pub struct UserInfo {
     pub email: String,
     #[serde(deserialize_with = "number_from_string")]
     pub expiration: i32,
@@ -27,7 +27,6 @@ pub struct User {
 pub struct CreateUserRequest {
     pub username: String,
     pub password: String,
-    // Validate by matching with /api/list/roles?
     pub role: String,
     pub pod: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,43 +53,63 @@ pub struct EditUserRequest {
     pub expiration: Option<i32>,
 }
 
-pub type Users = HashMap<String, User>;
-pub type UserRoles = HashMap<String, String>;
+pub struct Users {
+    client: Client,
+}
 
-impl Client {
-    pub async fn users(&self) -> Result<Users> {
+impl Users {
+    pub fn new(client: Client) -> Self {
+        Self { client }
+    }
+
+    pub async fn list(&self) -> Result<HashMap<String, UserInfo>> {
         Ok(self
-            .get::<WireMap<String, User>>("users/")
+            .client
+            .get::<WireMap<String, UserInfo>>("users/")
             .await?
             .into_data()?
             .0)
     }
 
-    pub async fn user(&self, username: &str) -> Result<User> {
-        self.get(&format!("users/{}", username)).await?.into_data()
+    pub async fn add(&self, params: &CreateUserRequest) -> Result<User> {
+        self.client
+            .post::<(), CreateUserRequest>("users", params)
+            .await?;
+        Ok(User::new(self.client.clone(), &params.username))
+    }
+}
+
+pub struct User {
+    client: Client,
+    username: String,
+}
+
+impl User {
+    pub fn new(client: Client, username: &str) -> Self {
+        Self {
+            client,
+            username: username.to_string(),
+        }
     }
 
-    pub async fn create_user(&self, params: &CreateUserRequest) -> Result<()> {
-        self.post::<(), CreateUserRequest>("users", params).await?;
-        Ok(())
+    pub async fn get(&self) -> Result<UserInfo> {
+        self.client
+            .get(&format!("users/{}", self.username))
+            .await?
+            .into_data()
     }
 
-    pub async fn edit_user(&self, username: &str, params: &EditUserRequest) -> Result<()> {
-        self.put::<(), EditUserRequest>(&format!("users/{}", username), params)
+    pub async fn edit(&self, params: &EditUserRequest) -> Result<()> {
+        self.client
+            .put::<(), EditUserRequest>(&format!("users/{}", self.username), params)
             .await?;
         Ok(())
     }
 
-    pub async fn delete_user(&self, username: &str) -> Result<()> {
-        self.delete::<()>(&format!("users/{}", username)).await?;
+    pub async fn delete(&self) -> Result<()> {
+        self.client
+            .delete::<()>(&format!("users/{}", self.username))
+            .await?;
         Ok(())
-    }
-
-    pub async fn user_roles(&self) -> Result<UserRoles> {
-        Ok(self
-            .get::<WireMap<String, String>>("list/roles")
-            .await?
-            .into_data()?
-            .0)
     }
 }

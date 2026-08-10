@@ -187,16 +187,24 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = crate::Client::builder(server.uri(), "Test.unl")?
+        let client = crate::Client::builder(server.uri())?
             .login("admin", "eve")
             .await?;
-        assert!(client.nodes().await?.is_empty());
+        assert!(
+            client
+                .folder("/")
+                .lab("Test.unl")
+                .nodes()
+                .list()
+                .await?
+                .is_empty()
+        );
         Ok(())
     }
 
     #[test]
     fn wire_map_works_inside_response() {
-        let r: crate::Response<WireMap<i32, Item>> =
+        let r: crate::client::Response<WireMap<i32, Item>> =
             serde_json::from_str(r#"{"code":200,"status":"success","message":"ok","data":[]}"#)
                 .unwrap();
         assert!(r.data.unwrap().0.is_empty());

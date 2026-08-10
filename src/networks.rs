@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Network {
+pub struct NetworkInfo {
     pub count: i32,
     pub icon: String,
     // appears in /networks, not in /networks/{id}
@@ -18,8 +18,6 @@ pub struct Network {
     #[serde(deserialize_with = "number_from_string")]
     pub visibility: i32,
 }
-
-pub type Networks = HashMap<i32, Network>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateNetworkRequest {
@@ -79,55 +77,74 @@ pub struct DeleteNetworkResponse {
     pub network_type: String,
 }
 
-pub type NetworkTypes = HashMap<String, String>;
+pub struct Networks {
+    client: Client,
+    path: String,
+}
 
-impl Client {
-    pub async fn networks(&self) -> Result<Networks> {
+impl Networks {
+    pub fn new(client: Client, path: &str) -> Self {
+        Self {
+            client,
+            path: path.to_string(),
+        }
+    }
+
+    pub async fn list(&self) -> Result<HashMap<i32, NetworkInfo>> {
         Ok(self
-            .get::<WireMap<i32, Network>>(&format!("labs/{}/networks", self.lab_path))
+            .client
+            .get::<WireMap<i32, NetworkInfo>>(&format!("labs/{}/networks", self.path))
             .await?
             .into_data()?
             .0)
     }
 
-    pub async fn network(&self, id: i32) -> Result<Network> {
-        self.get(&format!("labs/{}/networks/{}", self.lab_path, id))
+    pub async fn add(&self, params: &CreateNetworkRequest) -> Result<Network> {
+        let resp: CreateNetworkResponse = self
+            .client
+            .post(&format!("labs/{}/networks", self.path), params)
+            .await?
+            .into_data()?;
+        Ok(Network::new(self.client.clone(), &self.path, resp.id))
+    }
+}
+
+pub struct Network {
+    client: Client,
+    path: String,
+    id: i32,
+}
+
+impl Network {
+    pub fn new(client: Client, path: &str, id: i32) -> Self {
+        Self {
+            client,
+            path: path.to_string(),
+            id,
+        }
+    }
+
+    pub async fn get(&self) -> Result<NetworkInfo> {
+        self.client
+            .get(&format!("labs/{}/networks/{}", self.path, self.id))
             .await?
             .into_data()
     }
 
-    pub async fn add_network(
-        &self,
-        params: &CreateNetworkRequest,
-    ) -> Result<CreateNetworkResponse> {
-        self.post::<CreateNetworkResponse, CreateNetworkRequest>(
-            &format!("labs/{}/networks", self.lab_path),
-            params,
-        )
-        .await?
-        .into_data()
-    }
-
-    pub async fn edit_network(&self, id: i32, params: &EditNetworkRequest) -> Result<()> {
-        self.put::<(), EditNetworkRequest>(
-            &format!("labs/{}/networks/{}", self.lab_path, id),
-            params,
-        )
-        .await?;
+    pub async fn edit(&self, params: &EditNetworkRequest) -> Result<()> {
+        self.client
+            .put::<(), EditNetworkRequest>(
+                &format!("labs/{}/networks/{}", self.path, self.id),
+                params,
+            )
+            .await?;
         Ok(())
     }
 
-    pub async fn delete_network(&self, id: i32) -> Result<DeleteNetworkResponse> {
-        self.delete(&format!("labs/{}/networks/{}", self.lab_path, id))
+    pub async fn delete(&self) -> Result<DeleteNetworkResponse> {
+        self.client
+            .delete(&format!("labs/{}/networks/{}", self.path, self.id))
             .await?
             .into_data()
-    }
-
-    pub async fn network_types(&self) -> Result<NetworkTypes> {
-        Ok(self
-            .get::<WireMap<String, String>>("list/networks")
-            .await?
-            .into_data()?
-            .0)
     }
 }

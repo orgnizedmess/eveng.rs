@@ -1,8 +1,11 @@
-use crate::utils::number_from_string;
+use crate::folders::{Folder, Folders};
+use crate::users::Users;
+use crate::utils::{WireMap, number_from_string};
 use crate::{Error, Result};
 use reqwest::{Method, Url};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -15,7 +18,7 @@ use std::time::Duration;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = Client::builder("http://eveng.example.com", "Test.unl")?
+/// let client = Client::builder("http://eveng.example.com")?
 ///     .login("admin", "eve")
 ///     .await?;
 /// client.system_status().await?;
@@ -26,23 +29,20 @@ use std::time::Duration;
 pub struct Client {
     pub(crate) base_url: Arc<Url>,
     pub(crate) api: reqwest::Client,
-    pub(crate) lab_path: String,
 }
 
 #[derive(Debug)]
 pub struct ClientBuilder {
     base_url: Arc<Url>,
-    lab_path: String,
     timeout: Duration,
     ssl_verify: bool,
     html5: u8,
 }
 
 impl ClientBuilder {
-    pub fn new(base_url: impl AsRef<str>, lab_path: impl Into<String>) -> Result<Self> {
+    pub fn new(base_url: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
             base_url: Arc::new(Url::parse(base_url.as_ref())?),
-            lab_path: lab_path.into(),
             timeout: Duration::from_secs(10),
             ssl_verify: true,
             html5: 1,
@@ -71,7 +71,6 @@ impl ClientBuilder {
     ) -> Result<Client> {
         let client = Client {
             base_url: self.base_url.clone(),
-            lab_path: self.lab_path.clone(),
             api: reqwest::Client::builder()
                 .cookie_store(true)
                 .timeout(self.timeout)
@@ -86,16 +85,12 @@ impl ClientBuilder {
             html5: u8,
         }
 
-        let _: Response<()> = client
-            .post(
-                "auth/login",
-                &LoginRequest {
-                    username: username.into(),
-                    password: password.into(),
-                    html5: self.html5,
-                },
-            )
-            .await?;
+        let params = &LoginRequest {
+            username: username.into(),
+            password: password.into(),
+            html5: self.html5,
+        };
+        let _: Response<()> = client.post("auth/login", params).await?;
 
         Ok(client)
     }
@@ -143,12 +138,19 @@ pub struct AuthInfo {
     pub username: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Template {
+    description: String,
+    options: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    qemu: Option<serde_json::Value>,
+    #[serde(rename = "type")]
+    template_type: String,
+}
+
 impl Client {
-    pub fn builder(
-        base_url: impl AsRef<str>,
-        lab_path: impl Into<String>,
-    ) -> Result<ClientBuilder> {
-        Ok(ClientBuilder::new(base_url, lab_path)?)
+    pub fn builder(base_url: impl AsRef<str>) -> Result<ClientBuilder> {
+        Ok(ClientBuilder::new(base_url)?)
     }
 
     pub async fn auth_info(&self) -> Result<AuthInfo> {
@@ -156,12 +158,54 @@ impl Client {
     }
 
     pub async fn logout(&self) -> Result<()> {
-        self.get::<()>("auth/logout").await?;
+        let _: Response<()> = self.get("auth/logout").await?;
         Ok(())
     }
 
     pub async fn system_status(&self) -> Result<SystemStatus> {
         self.get("status").await?.into_data()
+    }
+
+    pub fn folders(&self) -> Folders {
+        Folders::new(self.clone())
+    }
+
+    pub fn folder(&self, path: &str) -> Folder {
+        Folder::new(self.clone(), path.trim_start_matches("/"))
+    }
+
+    pub fn users(&self) -> Users {
+        Users::new(self.clone())
+    }
+
+    pub async fn list_node_templates(&self) -> Result<HashMap<String, String>> {
+        Ok(self
+            .get::<WireMap<String, String>>("list/templates/")
+            .await?
+            .into_data()?
+            .0)
+    }
+
+    pub async fn get_node_template(&self, template: &str) -> Result<Template> {
+        self.get(&format!("list/templates/{}", template))
+            .await?
+            .into_data()
+    }
+
+    pub async fn list_network_types(&self) -> Result<HashMap<String, String>> {
+        Ok(self
+            .get::<WireMap<String, String>>("list/networks")
+            .await?
+            .into_data()?
+            .0)
+    }
+
+    pub async fn list_user_roles(&self) -> Result<HashMap<String, String>> {
+        Ok(self
+            .get::<WireMap<String, String>>("list/roles")
+            .await?
+            .into_data()?
+            .0)
     }
 
     pub async fn request<T, B>(
@@ -245,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_client_builder() -> Result<()> {
-        let builder = ClientBuilder::new("http://eveng.example.com", "Test.unl")?;
+        let builder = ClientBuilder::new("http://eveng.example.com")?;
 
         assert_eq!(
             builder.base_url.as_str().trim_end_matches("/"),
@@ -260,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_builder_methods() -> Result<()> {
-        let builder = ClientBuilder::new("http://eveng.example.com", "Test.unl")?
+        let builder = ClientBuilder::new("http://eveng.example.com")?
             .timeout(Duration::from_secs(30))
             .ssl_verify(false)
             .html5(0);
@@ -296,9 +340,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = Client::builder(server.uri(), "Test.unl")?
-            .login("admin", "eve")
-            .await;
+        let client = Client::builder(server.uri())?.login("admin", "eve").await;
         let err = client.unwrap_err();
 
         match err {
