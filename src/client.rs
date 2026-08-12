@@ -1,36 +1,22 @@
 use crate::folders::{Folder, Folders};
-use crate::users::Users;
-use crate::utils::{WireMap, number_from_string};
+use crate::system::System;
+use crate::users::{User, Users};
+use crate::utils::number_from_string;
 use crate::{Error, Result};
 use reqwest::{Method, Url};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 /// Main client for the EVE-NG API
-///
-/// # Example
-///
-/// ```no_run
-/// use eveng::Client;
-///
-/// # #[tokio::main]
-/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = Client::builder("http://eveng.example.com")?
-///     .login("admin", "eve")
-///     .await?;
-/// client.system_status().await?;
-/// #   Ok(())
-/// # }
-/// ```
 #[derive(Debug, Clone)]
 pub struct Client {
-    pub(crate) base_url: Arc<Url>,
-    pub(crate) api: reqwest::Client,
+    base_url: Arc<Url>,
+    api: reqwest::Client,
 }
 
+/// A builder to customize `Client` configuration
 #[derive(Debug)]
 pub struct ClientBuilder {
     base_url: Arc<Url>,
@@ -40,30 +26,34 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
-    pub fn new(base_url: impl AsRef<str>) -> Result<Self> {
+    fn new(base_url: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
             base_url: Arc::new(Url::parse(base_url.as_ref())?),
-            timeout: Duration::from_secs(10),
+            timeout: Duration::from_secs(30),
             ssl_verify: true,
             html5: 1,
         })
     }
 
+    /// Set the request timeout. Defaults to 30 seconds.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
+    /// Set verification of SSL certificates. Defaults to true.
     pub fn ssl_verify(mut self, ssl_verify: bool) -> Self {
         self.ssl_verify = ssl_verify;
         self
     }
 
+    /// Use the html5 console for EVE-NG. Defaults to 1.
     pub fn html5(mut self, html5: u8) -> Self {
         self.html5 = html5;
         self
     }
 
+    /// Builds a `Client` and logs into the EVE-NG host.
     pub async fn login(
         &self,
         username: impl Into<String>,
@@ -97,7 +87,7 @@ impl ClientBuilder {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Response<T> {
+pub(crate) struct Response<T> {
     #[serde(deserialize_with = "number_from_string")]
     pub code: u16,
     pub status: String,
@@ -107,108 +97,60 @@ pub struct Response<T> {
 }
 
 impl<T> Response<T> {
-    pub fn into_data(self) -> Result<T> {
+    pub(crate) fn into_data(self) -> Result<T> {
         self.data.ok_or(Error::MissingData)
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct SystemStatus {
-    pub cached: i32,
-    pub cpu: i32,
-    pub disk: i32,
-    pub dynamips: i32,
-    pub iol: i32,
-    pub mem: i32,
-    pub qemu: i32,
-    pub qemu_version: String,
-    pub swap: i32,
-    pub version: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct AuthInfo {
-    pub email: String,
-    pub lab: String,
-    pub lang: String,
-    pub name: String,
-    pub role: String,
-    #[serde(deserialize_with = "number_from_string")]
-    pub tenant: i32,
-    pub username: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Template {
-    description: String,
-    options: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    qemu: Option<serde_json::Value>,
-    #[serde(rename = "type")]
-    template_type: String,
-}
-
 impl Client {
+    /// Constructs a `Client` and logs into the EVE-NG instance
+    pub async fn new(
+        base_url: impl AsRef<str>,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Result<Client> {
+        ClientBuilder::new(base_url)?
+            .login(username, password)
+            .await
+    }
+
+    /// Creates a `ClientBuilder` to customize a `Client`
     pub fn builder(base_url: impl AsRef<str>) -> Result<ClientBuilder> {
-        Ok(ClientBuilder::new(base_url)?)
+        ClientBuilder::new(base_url)
     }
 
-    pub async fn auth_info(&self) -> Result<AuthInfo> {
-        self.get("auth").await?.into_data()
-    }
-
+    /// Logout of the EVE-NG instance
     pub async fn logout(&self) -> Result<()> {
         let _: Response<()> = self.get("auth/logout").await?;
         Ok(())
     }
 
-    pub async fn system_status(&self) -> Result<SystemStatus> {
-        self.get("status").await?.into_data()
+    /// Access system-wide endpoints.
+    pub fn system(&self) -> System {
+        System::new(self.clone())
     }
 
+    /// Access endpoints to manage folders on the host.
     pub fn folders(&self) -> Folders {
         Folders::new(self.clone())
     }
 
+    /// Access endpoints to manage a specific folder.
     pub fn folder(&self, path: &str) -> Folder {
         Folder::new(self.clone(), path.trim_start_matches("/"))
     }
 
+    /// Access endpoints to manage users on the host.
     pub fn users(&self) -> Users {
         Users::new(self.clone())
     }
 
-    pub async fn list_node_templates(&self) -> Result<HashMap<String, String>> {
-        Ok(self
-            .get::<WireMap<String, String>>("list/templates/")
-            .await?
-            .into_data()?
-            .0)
+    /// Access endpoints to manage a specific user.
+    pub fn user(&self, username: &str) -> User {
+        User::new(self.clone(), username)
     }
 
-    pub async fn get_node_template(&self, template: &str) -> Result<Template> {
-        self.get(&format!("list/templates/{}", template))
-            .await?
-            .into_data()
-    }
-
-    pub async fn list_network_types(&self) -> Result<HashMap<String, String>> {
-        Ok(self
-            .get::<WireMap<String, String>>("list/networks")
-            .await?
-            .into_data()?
-            .0)
-    }
-
-    pub async fn list_user_roles(&self) -> Result<HashMap<String, String>> {
-        Ok(self
-            .get::<WireMap<String, String>>("list/roles")
-            .await?
-            .into_data()?
-            .0)
-    }
-
-    pub async fn request<T, B>(
+    async fn request<T, B>(
         &self,
         method: Method,
         endpoint: &str,
@@ -247,14 +189,16 @@ impl Client {
         Ok(response.json::<Response<T>>().await?)
     }
 
-    pub async fn get<T>(&self, endpoint: &str) -> Result<Response<T>>
+    /// Make a GET request to the API
+    pub(crate) async fn get<T>(&self, endpoint: &str) -> Result<Response<T>>
     where
         T: DeserializeOwned,
     {
         self.request::<T, ()>(Method::GET, endpoint, None).await
     }
 
-    pub async fn post<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
+    /// Make a POST request to the API
+    pub(crate) async fn post<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
     where
         T: DeserializeOwned,
         B: Serialize,
@@ -262,7 +206,8 @@ impl Client {
         self.request(Method::POST, endpoint, Some(body)).await
     }
 
-    pub async fn put<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
+    /// Make a PUT request to the API
+    pub(crate) async fn put<T, B>(&self, endpoint: &str, body: &B) -> Result<Response<T>>
     where
         T: DeserializeOwned,
         B: Serialize,
@@ -270,7 +215,8 @@ impl Client {
         self.request(Method::PUT, endpoint, Some(body)).await
     }
 
-    pub async fn delete<T>(&self, endpoint: &str) -> Result<Response<T>>
+    /// Make a DELETE request to the API
+    pub(crate) async fn delete<T>(&self, endpoint: &str) -> Result<Response<T>>
     where
         T: DeserializeOwned,
     {
@@ -289,13 +235,10 @@ mod tests {
 
     #[test]
     fn test_client_builder() -> Result<()> {
-        let builder = ClientBuilder::new("http://eveng.example.com")?;
+        let builder = Client::builder("http://eveng.example.com")?;
 
-        assert_eq!(
-            builder.base_url.as_str().trim_end_matches("/"),
-            "http://eveng.example.com"
-        );
-        assert_eq!(builder.timeout, Duration::from_secs(10));
+        assert_eq!(builder.base_url.as_str(), "http://eveng.example.com/");
+        assert_eq!(builder.timeout, Duration::from_secs(30));
         assert_eq!(builder.html5, 1);
         assert!(builder.ssl_verify);
 
@@ -303,13 +246,13 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_methods() -> Result<()> {
-        let builder = ClientBuilder::new("http://eveng.example.com")?
-            .timeout(Duration::from_secs(30))
+    fn test_client_builder_methods() -> Result<()> {
+        let builder = Client::builder("http://eveng.example.com")?
+            .timeout(Duration::from_secs(10))
             .ssl_verify(false)
             .html5(0);
 
-        assert_eq!(builder.timeout, Duration::from_secs(30));
+        assert_eq!(builder.timeout, Duration::from_secs(10));
         assert_eq!(builder.html5, 0);
         assert!(!builder.ssl_verify);
 
@@ -317,7 +260,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_bad_gateway_response() -> Result<()> {
+    async fn test_api_error() -> Result<()> {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
@@ -340,7 +283,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = Client::builder(server.uri())?.login("admin", "eve").await;
+        let client = Client::new(server.uri(), "admin", "eve").await;
         let err = client.unwrap_err();
 
         match err {
