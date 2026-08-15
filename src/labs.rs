@@ -1,7 +1,10 @@
+//! Endpoints for working with labs within a folder.
+
 use crate::networks::{Network, Networks};
 use crate::nodes::{Node, Nodes};
+use crate::utils::validate_name;
 use crate::utils::{map_or_empty_seq, nested_map_or_empty_seq, number_from_string};
-use crate::{Client, Result};
+use crate::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -49,8 +52,6 @@ pub struct CreateLabRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EditLabRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
@@ -60,11 +61,6 @@ pub struct EditLabRequest {
     pub version: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scripttimeout: Option<i32>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MoveLabRequest {
-    pub dest_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -101,114 +97,202 @@ impl Labs {
     }
 
     pub async fn add(&self, params: &CreateLabRequest) -> Result<Lab> {
+        validate_name(&params.name)?;
+
         self.client
             .post::<(), CreateLabRequest>("labs", params)
             .await?;
-        Ok(Lab::new(
-            self.client.clone(),
-            &format!("{}{}.unl", &self.path, &params.name),
-        ))
+
+        Ok(Lab::new(self.client.clone(), &self.path, &params.name))
+    }
+}
+
+#[derive(Debug)]
+pub struct LabPath(String);
+
+impl LabPath {
+    pub fn new(path: &str, name: &str) -> Self {
+        let mut lab = name.to_string();
+
+        if !lab.ends_with(".unl") {
+            lab.push_str(".unl")
+        }
+
+        Self(format!("{}/{}", path.trim_end_matches("/"), lab))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn folder(&self) -> &str {
+        self.0
+            .rsplit_once("/")
+            .map(|(p, _)| p)
+            .filter(|p| !p.is_empty())
+            .unwrap_or("/")
+    }
+
+    pub fn lab(&self) -> &str {
+        self.0.rsplit("/").next().unwrap()
+    }
+
+    pub fn lab_name(&self) -> &str {
+        self.lab().split_once(".").map(|(name, _)| name).unwrap()
+    }
+}
+
+impl std::fmt::Display for LabPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
 
 pub struct Lab {
     client: Client,
-    path: String,
+    path: LabPath,
 }
 
 impl Lab {
-    pub fn new(client: Client, path: &str) -> Self {
+    pub fn new(client: Client, path: &str, name: &str) -> Self {
         Self {
             client,
-            path: path.to_string(),
+            path: LabPath::new(path, name),
         }
     }
 
     pub async fn get(&self) -> Result<LabInfo> {
         self.client
-            .get(&format!("labs/{}", self.path))
+            .get(&format!("labs{}", self.path))
             .await?
             .into_data()
     }
 
-    pub async fn edit(&mut self, params: &EditLabRequest) -> Result<()> {
+    // Docs specify that only one parameter can be changed per request, but
+    // editing multiple parameters works?
+    pub async fn edit(&self, params: &EditLabRequest) -> Result<()> {
         self.client
-            .put::<(), EditLabRequest>(&format!("labs/{}", self.path), params)
-            .await?;
-        // TODO: Update path if name is changed
-        // self.path contains previous name here, so below would result in an incorrect path
-        // Lab path type should help here
-        // if let Some(name) = &params.name {
-        //    self.path = format!("{}{}.unl", self.path.trim_start_matches("/"), name);
-        // }
-        Ok(())
-    }
-
-    // Doesn't run correctly via API, works if I make files via GUI
-    pub async fn move_to_folder(&self, dest_path: &str) -> Result<()> {
-        self.client
-            .put::<(), MoveLabRequest>(
-                &format!("labs/{}/move", self.path),
-                &MoveLabRequest {
-                    dest_path: dest_path.to_string(),
-                },
-            )
+            .put::<(), EditLabRequest>(&format!("labs{}", self.path), params)
             .await?;
         Ok(())
     }
 
-    pub async fn delete(&self) -> Result<()> {
+    pub async fn rename(self, name: &str) -> Result<Lab> {
+        validate_name(name)?;
+
+        #[derive(Debug, Serialize)]
+        struct RenameLabRequest {
+            name: String,
+        }
+
+        let params = &RenameLabRequest {
+            name: name.to_string(),
+        };
         self.client
-            .delete::<()>(&format!("labs/{}", self.path))
+            .put::<(), RenameLabRequest>(&format!("labs{}", self.path), params)
+            .await?;
+
+        Ok(Lab::new(self.client.clone(), self.path.folder(), name))
+    }
+
+    pub async fn move_to(self, path: &str) -> Result<Lab> {
+        #[derive(Debug, Serialize)]
+        struct MoveLabRequest {
+            path: String,
+        }
+
+        let params = &MoveLabRequest {
+            path: path.to_string(),
+        };
+        self.client
+            .put::<(), MoveLabRequest>(&format!("labs{}/move", self.path), params)
+            .await?;
+
+        Ok(Lab::new(self.client.clone(), path, self.path.lab_name()))
+    }
+
+    pub async fn delete(self) -> Result<()> {
+        self.client
+            .delete::<()>(&format!("labs{}", self.path))
             .await?;
         Ok(())
     }
 
-    // Visible on GUI, undocumented in API
-    // Yes, the endpoint is with a capital L
     pub async fn lock(&self) -> Result<()> {
         self.client
-            .put::<(), ()>(&format!("labs/{}/Lock", self.path), &())
+            .put::<(), ()>(&format!("labs{}/Lock", self.path), &())
             .await?;
         Ok(())
     }
 
-    // Visible on GUI, undocumented in API
     pub async fn unlock(&self) -> Result<()> {
         self.client
-            .put::<(), ()>(&format!("labs/{}/Unlock", self.path), &())
+            .put::<(), ()>(&format!("labs{}/Unlock", self.path), &())
             .await?;
         Ok(())
-    }
-
-    pub fn nodes(&self) -> Nodes {
-        Nodes::new(self.client.clone(), &self.path)
-    }
-
-    pub fn node(&self, id: i32) -> Node {
-        Node::new(self.client.clone(), &self.path, id)
-    }
-
-    pub fn networks(&self) -> Networks {
-        Networks::new(self.client.clone(), &self.path)
-    }
-
-    pub fn network(&self, id: i32) -> Network {
-        Network::new(self.client.clone(), &self.path, id)
     }
 
     pub async fn topology(&self) -> Result<Vec<TopologyEntry>> {
         self.client
-            .get(&format!("labs/{}/topology", self.path))
+            .get(&format!("labs{}/topology", self.path))
             .await?
             .into_data()
     }
 
-    // Part of labs API in source code
     pub async fn links(&self) -> Result<Links> {
         self.client
-            .get(&format!("labs/{}/links", self.path))
+            .get(&format!("labs{}/links", self.path))
             .await?
             .into_data()
+    }
+
+    pub fn nodes(&self) -> Nodes {
+        Nodes::new(self.client.clone(), &self.path.as_str())
+    }
+
+    pub fn node(&self, id: i32) -> Node {
+        Node::new(self.client.clone(), &self.path.as_str(), id)
+    }
+
+    pub fn networks(&self) -> Networks {
+        Networks::new(self.client.clone(), &self.path.as_str())
+    }
+
+    pub fn network(&self, id: i32) -> Network {
+        Network::new(self.client.clone(), &self.path.as_str(), id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_lab_path() {
+        let path = LabPath::new("/Test Folder", "Test");
+
+        assert_eq!(path.as_str(), "/Test Folder/Test.unl");
+        assert_eq!(path.folder(), "/Test Folder");
+        assert_eq!(path.lab_name(), "Test");
+    }
+
+    #[test]
+    fn test_folder_rename() {
+        let path = LabPath::new("/Test Folder", "Test");
+        let new_path = LabPath::new(path.folder(), "Test1");
+
+        assert_eq!(new_path.as_str(), "/Test Folder/Test1.unl");
+        assert_eq!(new_path.folder(), "/Test Folder");
+        assert_eq!(new_path.lab(), "Test1.unl");
+        assert_eq!(new_path.lab_name(), "Test1");
+    }
+
+    #[test]
+    fn test_folder_move() {
+        let path = LabPath::new("/Test Folder", "Test");
+        let new_path = LabPath::new("/New Folder", path.lab());
+
+        assert_eq!(new_path.as_str(), "/New Folder/Test.unl");
+        assert_eq!(new_path.folder(), "/New Folder");
+        assert_eq!(new_path.lab(), "Test.unl");
     }
 }

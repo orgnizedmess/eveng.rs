@@ -155,7 +155,7 @@ impl Nodes {
     pub async fn list(&self) -> Result<HashMap<i32, NodeInfo>> {
         Ok(self
             .client
-            .get::<WireMap<i32, NodeInfo>>(&format!("labs/{}/nodes", self.path))
+            .get::<WireMap<i32, NodeInfo>>(&format!("labs{}/nodes", self.path))
             .await?
             .into_data()?
             .0)
@@ -164,7 +164,7 @@ impl Nodes {
     pub async fn add(&self, params: &CreateNodeRequest) -> Result<Node> {
         let resp: CreateNodeResponse = self
             .client
-            .post(&format!("labs/{}/nodes", self.path), params)
+            .post(&format!("labs{}/nodes", self.path), params)
             .await?
             .into_data()?;
         Ok(Node::new(self.client.clone(), &self.path, resp.id))
@@ -172,28 +172,28 @@ impl Nodes {
 
     pub async fn start(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/start", self.path))
+            .get::<()>(&format!("labs{}/nodes/start", self.path))
             .await?;
         Ok(())
     }
 
     pub async fn stop(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/stop", self.path))
+            .get::<()>(&format!("labs{}/nodes/stop", self.path))
             .await?;
         Ok(())
     }
 
     pub async fn wipe(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/wipe", self.path))
+            .get::<()>(&format!("labs{}/nodes/wipe", self.path))
             .await?;
         Ok(())
     }
 
     pub async fn export(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/export", self.path))
+            .get::<()>(&format!("labs{}/nodes/export", self.path))
             .await?;
         Ok(())
     }
@@ -216,56 +216,56 @@ impl Node {
 
     pub async fn get(&self) -> Result<NodeInfo> {
         self.client
-            .get(&format!("labs/{}/nodes/{}", self.path, self.id))
+            .get(&format!("labs{}/nodes/{}", self.path, self.id))
             .await?
             .into_data()
     }
 
     pub async fn edit(&self, params: &EditNodeRequest) -> Result<()> {
         self.client
-            .put::<(), EditNodeRequest>(&format!("labs/{}/nodes/{}", self.path, self.id), params)
+            .put::<(), EditNodeRequest>(&format!("labs{}/nodes/{}", self.path, self.id), params)
             .await?;
         Ok(())
     }
 
     pub async fn delete(&self) -> Result<()> {
         self.client
-            .delete::<()>(&format!("labs/{}/nodes/{}", self.path, self.id))
+            .delete::<()>(&format!("labs{}/nodes/{}", self.path, self.id))
             .await?;
         Ok(())
     }
 
     pub async fn start(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/{}/start", self.path, self.id))
+            .get::<()>(&format!("labs{}/nodes/{}/start", self.path, self.id))
             .await?;
         Ok(())
     }
 
     pub async fn stop(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/{}/stop", self.path, self.id))
+            .get::<()>(&format!("labs{}/nodes/{}/stop", self.path, self.id))
             .await?;
         Ok(())
     }
 
     pub async fn wipe(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/{}/wipe", self.path, self.id))
+            .get::<()>(&format!("labs{}/nodes/{}/wipe", self.path, self.id))
             .await?;
         Ok(())
     }
 
     pub async fn export(&self) -> Result<()> {
         self.client
-            .get::<()>(&format!("labs/{}/nodes/{}/export", self.path, self.id))
+            .get::<()>(&format!("labs{}/nodes/{}/export", self.path, self.id))
             .await?;
         Ok(())
     }
 
     pub async fn interfaces(&self) -> Result<Interfaces> {
         self.client
-            .get(&format!("labs/{}/nodes/{}/interfaces", self.path, self.id))
+            .get(&format!("labs{}/nodes/{}/interfaces", self.path, self.id))
             .await?
             .into_data()
     }
@@ -274,7 +274,7 @@ impl Node {
     pub async fn edit_interface(&self, params: &EditInterfaceRequest) -> Result<()> {
         self.client
             .put::<(), EditInterfaceRequest>(
-                &format!("labs/{}/nodes/{}/interfaces", self.path, self.id),
+                &format!("labs{}/nodes/{}/interfaces", self.path, self.id),
                 params,
             )
             .await?;

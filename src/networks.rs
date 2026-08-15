@@ -93,7 +93,7 @@ impl Networks {
     pub async fn list(&self) -> Result<HashMap<i32, NetworkInfo>> {
         Ok(self
             .client
-            .get::<WireMap<i32, NetworkInfo>>(&format!("labs/{}/networks", self.path))
+            .get::<WireMap<i32, NetworkInfo>>(&format!("labs{}/networks", self.path))
             .await?
             .into_data()?
             .0)
@@ -102,7 +102,7 @@ impl Networks {
     pub async fn add(&self, params: &CreateNetworkRequest) -> Result<Network> {
         let resp: CreateNetworkResponse = self
             .client
-            .post(&format!("labs/{}/networks", self.path), params)
+            .post(&format!("labs{}/networks", self.path), params)
             .await?
             .into_data()?;
         Ok(Network::new(self.client.clone(), &self.path, resp.id))
@@ -126,7 +126,7 @@ impl Network {
 
     pub async fn get(&self) -> Result<NetworkInfo> {
         self.client
-            .get(&format!("labs/{}/networks/{}", self.path, self.id))
+            .get(&format!("labs{}/networks/{}", self.path, self.id))
             .await?
             .into_data()
     }
@@ -134,7 +134,7 @@ impl Network {
     pub async fn edit(&self, params: &EditNetworkRequest) -> Result<()> {
         self.client
             .put::<(), EditNetworkRequest>(
-                &format!("labs/{}/networks/{}", self.path, self.id),
+                &format!("labs{}/networks/{}", self.path, self.id),
                 params,
             )
             .await?;
@@ -143,7 +143,7 @@ impl Network {
 
     pub async fn delete(&self) -> Result<DeleteNetworkResponse> {
         self.client
-            .delete(&format!("labs/{}/networks/{}", self.path, self.id))
+            .delete(&format!("labs{}/networks/{}", self.path, self.id))
             .await?
             .into_data()
     }

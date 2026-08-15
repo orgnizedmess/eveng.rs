@@ -137,7 +137,7 @@ impl Client {
 
     /// Access endpoints to manage a specific folder.
     pub fn folder(&self, path: &str) -> Folder {
-        Folder::new(self.clone(), path.trim_start_matches("/"))
+        Folder::new(self.clone(), path)
     }
 
     /// Access endpoints to manage users on the host.

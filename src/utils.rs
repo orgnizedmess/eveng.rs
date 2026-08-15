@@ -109,6 +109,20 @@ where
     }
 }
 
+pub(crate) fn validate_name(name: &str) -> crate::Result<()> {
+    if let Some(c) = name.chars().find(|c| !is_allowed_char(c)) {
+        return Err(crate::Error::InvalidName {
+            name: name.to_string(),
+            c,
+        });
+    }
+    Ok(())
+}
+
+fn is_allowed_char(c: &char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,5 +222,30 @@ mod tests {
             serde_json::from_str(r#"{"code":200,"status":"success","message":"ok","data":[]}"#)
                 .unwrap();
         assert!(r.data.unwrap().0.is_empty());
+    }
+
+    #[test]
+    fn validate_folder_name() {
+        let result = validate_name("Test Folder");
+        assert!(result.is_ok());
+
+        let result = validate_name("/New Folder");
+        assert!(result.is_err());
+
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("contains invalid character '/'"));
+    }
+
+    #[test]
+    fn validate_lab_name() {
+        let result = validate_name("Test");
+        assert!(result.is_ok());
+
+        // Functions take names without the extension
+        let result = validate_name("Test.unl");
+        assert!(result.is_err());
+
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("contains invalid character '.'"));
     }
 }
