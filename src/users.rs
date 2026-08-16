@@ -1,10 +1,12 @@
-use crate::utils::{WireMap, number_from_string};
+//! Clients and models for managing users on the EVE-NG instance.
+
+use crate::utils::WireMap;
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
-pub struct UserInfo {
+pub struct User {
     pub email: String,
     #[serde(deserialize_with = "number_from_string")]
     pub expiration: i32,
@@ -53,52 +55,58 @@ pub struct EditUserRequest {
     pub expiration: Option<i32>,
 }
 
-pub struct Users {
+/// A client for managing users.
+pub struct UsersClient {
     client: Client,
 }
 
-impl Users {
-    pub fn new(client: Client) -> Self {
+impl UsersClient {
+    pub(crate) fn new(client: Client) -> Self {
         Self { client }
     }
 
-    pub async fn list(&self) -> Result<HashMap<String, UserInfo>> {
+    /// Lists all users.
+    pub async fn list(&self) -> Result<HashMap<String, User>> {
         Ok(self
             .client
-            .get::<WireMap<String, UserInfo>>("users/")
+            .get::<WireMap<String, User>>("users/")
             .await?
             .into_data()?
             .0)
     }
 
-    pub async fn add(&self, params: &CreateUserRequest) -> Result<User> {
+    /// Creates a new user.
+    pub async fn add(&self, params: &CreateUserRequest) -> Result<UserClient> {
         self.client
             .post::<(), CreateUserRequest>("users", params)
             .await?;
-        Ok(User::new(self.client.clone(), &params.username))
+        Ok(UserClient::new(self.client.clone(), &params.username))
     }
 }
 
-pub struct User {
+/// A client to manage a single user.
+pub struct UserClient {
     client: Client,
     username: String,
 }
 
-impl User {
-    pub fn new(client: Client, username: &str) -> Self {
+impl UserClient {
+    pub(crate) fn new(client: Client, username: &str) -> Self {
         Self {
             client,
             username: username.to_string(),
         }
     }
 
-    pub async fn get(&self) -> Result<UserInfo> {
+    /// Gets the user's details.
+    pub async fn get(&self) -> Result<User> {
         self.client
             .get(&format!("users/{}", self.username))
             .await?
             .into_data()
     }
 
+    /// Updates the user's details.
     pub async fn edit(&self, params: &EditUserRequest) -> Result<()> {
         self.client
             .put::<(), EditUserRequest>(&format!("users/{}", self.username), params)
@@ -106,7 +114,8 @@ impl User {
         Ok(())
     }
 
-    pub async fn delete(&self) -> Result<()> {
+    /// Deletes a user.
+    pub async fn delete(self) -> Result<()> {
         self.client
             .delete::<()>(&format!("users/{}", self.username))
             .await?;

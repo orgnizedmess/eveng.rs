@@ -1,6 +1,6 @@
-use crate::folders::{Folder, Folders};
-use crate::system::System;
-use crate::users::{User, Users};
+use crate::folders::{FolderClient, FoldersClient};
+use crate::system::SystemClient;
+use crate::users::{UserClient, UsersClient};
 use crate::utils::number_from_string;
 use crate::{Error, Result};
 use reqwest::{Method, Url};
@@ -9,14 +9,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Main client for the EVE-NG API
+/// Main entry point: A client for the EVE-NG API.
 #[derive(Debug, Clone)]
 pub struct Client {
     base_url: Arc<Url>,
     api: reqwest::Client,
 }
 
-/// A builder to customize `Client` configuration
+/// A builder to customize [`Client`] configuration.
 #[derive(Debug)]
 pub struct ClientBuilder {
     base_url: Arc<Url>,
@@ -53,7 +53,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Builds a `Client` and logs into the EVE-NG host.
+    /// Builds a [`Client`] and logs into the EVE-NG instance.
     pub async fn login(
         &self,
         username: impl Into<String>,
@@ -103,7 +103,7 @@ impl<T> Response<T> {
 }
 
 impl Client {
-    /// Constructs a `Client` and logs into the EVE-NG instance
+    /// Creates a new API client.
     pub async fn new(
         base_url: impl AsRef<str>,
         username: impl Into<String>,
@@ -114,40 +114,40 @@ impl Client {
             .await
     }
 
-    /// Creates a `ClientBuilder` to customize a `Client`
+    /// Returns a builder to customize client configuration.
     pub fn builder(base_url: impl AsRef<str>) -> Result<ClientBuilder> {
         ClientBuilder::new(base_url)
     }
 
-    /// Logout of the EVE-NG instance
+    /// Logs out of the EVE-NG instance.
     pub async fn logout(&self) -> Result<()> {
         let _: Response<()> = self.get("auth/logout").await?;
         Ok(())
     }
 
-    /// Access system-wide endpoints.
-    pub fn system(&self) -> System {
-        System::new(self.clone())
+    /// Returns a client for system-level information.
+    pub fn system(&self) -> SystemClient {
+        SystemClient::new(self.clone())
     }
 
-    /// Access endpoints to manage folders on the host.
-    pub fn folders(&self) -> Folders {
-        Folders::new(self.clone())
+    /// Returns a client to manage folders.
+    pub fn folders(&self) -> FoldersClient {
+        FoldersClient::new(self.clone())
     }
 
-    /// Access endpoints to manage a specific folder.
-    pub fn folder(&self, path: &str) -> Folder {
-        Folder::new(self.clone(), path)
+    /// Returns a client to manage a single folder.
+    pub fn folder(&self, path: &str) -> FolderClient {
+        FolderClient::new(self.clone(), path)
     }
 
-    /// Access endpoints to manage users on the host.
-    pub fn users(&self) -> Users {
-        Users::new(self.clone())
+    /// Returns a client to manage users.
+    pub fn users(&self) -> UsersClient {
+        UsersClient::new(self.clone())
     }
 
-    /// Access endpoints to manage a specific user.
-    pub fn user(&self, username: &str) -> User {
-        User::new(self.clone(), username)
+    /// Returns a client to manage a single user.
+    pub fn user(&self, username: &str) -> UserClient {
+        UserClient::new(self.clone(), username)
     }
 
     async fn request<T, B>(
@@ -234,19 +234,22 @@ mod tests {
     };
 
     #[test]
-    fn test_client_builder() -> Result<()> {
-        let builder = Client::builder("http://eveng.example.com")?;
-
+    fn valid_client_builder() {
+        let builder = Client::builder("http://eveng.example.com").unwrap();
         assert_eq!(builder.base_url.as_str(), "http://eveng.example.com/");
         assert_eq!(builder.timeout, Duration::from_secs(30));
         assert_eq!(builder.html5, 1);
         assert!(builder.ssl_verify);
-
-        Ok(())
     }
 
     #[test]
-    fn test_client_builder_methods() -> Result<()> {
+    fn invalid_client_builder() {
+        let err = Client::builder("eveng.example.com").unwrap_err();
+        assert!(matches!(err, Error::Url(_)));
+    }
+
+    #[test]
+    fn client_builder_methods() -> Result<()> {
         let builder = Client::builder("http://eveng.example.com")?
             .timeout(Duration::from_secs(10))
             .ssl_verify(false)

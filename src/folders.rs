@@ -1,21 +1,22 @@
-//! Endpoints for managing folders on the host.
+//! Clients and models for managing folders on the EVE-NG instance.
 
-use crate::labs::{Lab, Labs};
+use crate::labs::{LabClient, LabsClient};
 use crate::utils::validate_name;
-use crate::{Client, Error, Result};
+use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 
-/// Endpoints for managing folders on the host.
-pub struct Folders {
+/// A client for managing folders.
+pub struct FoldersClient {
     client: Client,
 }
 
-impl Folders {
-    pub fn new(client: Client) -> Self {
+impl FoldersClient {
+    pub(crate) fn new(client: Client) -> Self {
         Self { client }
     }
 
-    pub async fn add(&self, params: &FolderEntry) -> Result<Folder> {
+    /// Creates a new folder.
+    pub async fn add(&self, params: &FolderEntry) -> Result<FolderClient> {
         validate_name(&params.name)?;
 
         self.client
@@ -23,7 +24,7 @@ impl Folders {
             .await?;
 
         let path = FolderPath::from_parts(&params.path, &params.name);
-        Ok(Folder {
+        Ok(FolderClient {
             client: self.client.clone(),
             path,
         })
@@ -31,7 +32,7 @@ impl Folders {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct FolderListing {
+pub struct Folder {
     pub folders: Vec<FolderEntry>,
     pub labs: Vec<LabEntry>,
 }
@@ -88,44 +89,47 @@ impl FolderPath {
     }
 }
 
-/// Endpoints for managing a specific folder.
-pub struct Folder {
+/// A client for managing a single folder.
+pub struct FolderClient {
     client: Client,
     path: FolderPath,
 }
 
-impl Folder {
-    pub fn new(client: Client, path: &str) -> Self {
+impl FolderClient {
+    pub(crate) fn new(client: Client, path: &str) -> Self {
         Self {
             client,
             path: FolderPath::new(path),
         }
     }
 
-    pub async fn list(&self) -> Result<FolderListing> {
+    // Lists the contents of the folder.
+    pub async fn list(&self) -> Result<Folder> {
         self.client
             .get(&format!("folders{}", self.path))
             .await?
             .into_data()
     }
 
-    pub async fn rename(self, name: &str) -> Result<Folder> {
+    // Renames the folder.
+    pub async fn rename(self, name: &str) -> Result<FolderClient> {
         validate_name(name)?;
 
         let new_path = FolderPath::from_parts(self.path.parent(), name);
         self.edit(new_path.as_str()).await?;
 
-        Ok(Folder {
+        Ok(FolderClient {
             client: self.client.clone(),
             path: new_path,
         })
     }
 
-    pub async fn move_to(self, path: &str) -> Result<Folder> {
-        let new_path = FolderPath::from_parts(path, self.path.leaf());
+    /// Moves the folder to the specified path.
+    pub async fn move_to(self, folder_path: &str) -> Result<FolderClient> {
+        let new_path = FolderPath::from_parts(folder_path, self.path.leaf());
         self.edit(new_path.as_str()).await?;
 
-        Ok(Folder {
+        Ok(FolderClient {
             client: self.client.clone(),
             path: new_path,
         })
@@ -148,6 +152,7 @@ impl Folder {
         Ok(())
     }
 
+    /// Deletes the folder.
     pub async fn delete(self) -> Result<()> {
         self.client
             .delete::<()>(&format!("folders{}", self.path))
@@ -155,13 +160,14 @@ impl Folder {
         Ok(())
     }
 
-    pub fn labs(&self) -> Labs {
-        Labs::new(self.client.clone(), &self.path.as_str())
+    /// Returns a client for managing labs.
+    pub fn labs(&self) -> LabsClient {
+        LabsClient::new(self.client.clone(), self.path.as_str())
     }
 
-    pub fn lab(&self, name: &str) -> Lab {
-        eprintln!("{} {}", self.path.as_str(), name);
-        Lab::new(self.client.clone(), &self.path.as_str(), name)
+    /// Returns a client for managing a single lab.
+    pub fn lab(&self, name: &str) -> LabClient {
+        LabClient::new(self.client.clone(), self.path.as_str(), name)
     }
 }
 

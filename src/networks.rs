@@ -1,10 +1,12 @@
+//! Clients and models for managing networks within a lab.
+
 use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct NetworkInfo {
+pub struct Network {
     pub count: i32,
     pub icon: String,
     // appears in /networks, not in /networks/{id}
@@ -77,46 +79,48 @@ pub struct DeleteNetworkResponse {
     pub network_type: String,
 }
 
-pub struct Networks {
+pub struct NetworksClient {
     client: Client,
     path: String,
 }
 
-impl Networks {
-    pub fn new(client: Client, path: &str) -> Self {
+impl NetworksClient {
+    pub(crate) fn new(client: Client, path: &str) -> Self {
         Self {
             client,
             path: path.to_string(),
         }
     }
 
-    pub async fn list(&self) -> Result<HashMap<i32, NetworkInfo>> {
+    /// Lists all networks.
+    pub async fn list(&self) -> Result<HashMap<i32, Network>> {
         Ok(self
             .client
-            .get::<WireMap<i32, NetworkInfo>>(&format!("labs{}/networks", self.path))
+            .get::<WireMap<i32, Network>>(&format!("labs{}/networks", self.path))
             .await?
             .into_data()?
             .0)
     }
 
-    pub async fn add(&self, params: &CreateNetworkRequest) -> Result<Network> {
+    /// Adds a new network to the lab.
+    pub async fn add(&self, params: &CreateNetworkRequest) -> Result<NetworkClient> {
         let resp: CreateNetworkResponse = self
             .client
             .post(&format!("labs{}/networks", self.path), params)
             .await?
             .into_data()?;
-        Ok(Network::new(self.client.clone(), &self.path, resp.id))
+        Ok(NetworkClient::new(self.client.clone(), &self.path, resp.id))
     }
 }
 
-pub struct Network {
+pub struct NetworkClient {
     client: Client,
     path: String,
     id: i32,
 }
 
-impl Network {
-    pub fn new(client: Client, path: &str, id: i32) -> Self {
+impl NetworkClient {
+    pub(crate) fn new(client: Client, path: &str, id: i32) -> Self {
         Self {
             client,
             path: path.to_string(),
@@ -124,13 +128,15 @@ impl Network {
         }
     }
 
-    pub async fn get(&self) -> Result<NetworkInfo> {
+    /// Gets the network's details.
+    pub async fn get(&self) -> Result<Network> {
         self.client
             .get(&format!("labs{}/networks/{}", self.path, self.id))
             .await?
             .into_data()
     }
 
+    /// Updates the network's details.
     pub async fn edit(&self, params: &EditNetworkRequest) -> Result<()> {
         self.client
             .put::<(), EditNetworkRequest>(
@@ -141,7 +147,8 @@ impl Network {
         Ok(())
     }
 
-    pub async fn delete(&self) -> Result<DeleteNetworkResponse> {
+    /// Deletes the network.
+    pub async fn delete(self) -> Result<DeleteNetworkResponse> {
         self.client
             .delete(&format!("labs{}/networks/{}", self.path, self.id))
             .await?

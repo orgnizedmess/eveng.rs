@@ -1,10 +1,12 @@
+//! Clients and models for managing nodes within a lab.
+
 use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
-pub struct NodeInfo {
+pub struct Node {
     #[serde(deserialize_with = "number_from_string")]
     pub config: i32,
     pub console: String,
@@ -139,37 +141,40 @@ pub struct Interfaces {
 // this alone doesn't explain what type is for what
 pub type EditInterfaceRequest = HashMap<i32, i32>;
 
-pub struct Nodes {
+pub struct NodesClient {
     client: Client,
     path: String,
 }
 
-impl Nodes {
-    pub fn new(client: Client, path: &str) -> Self {
+impl NodesClient {
+    pub(crate) fn new(client: Client, path: &str) -> Self {
         Self {
             client,
             path: path.to_string(),
         }
     }
 
-    pub async fn list(&self) -> Result<HashMap<i32, NodeInfo>> {
+    /// Lists all nodes.
+    pub async fn list(&self) -> Result<HashMap<i32, Node>> {
         Ok(self
             .client
-            .get::<WireMap<i32, NodeInfo>>(&format!("labs{}/nodes", self.path))
+            .get::<WireMap<i32, Node>>(&format!("labs{}/nodes", self.path))
             .await?
             .into_data()?
             .0)
     }
 
-    pub async fn add(&self, params: &CreateNodeRequest) -> Result<Node> {
+    /// Adds a new node to the lab.
+    pub async fn add(&self, params: &CreateNodeRequest) -> Result<NodeClient> {
         let resp: CreateNodeResponse = self
             .client
             .post(&format!("labs{}/nodes", self.path), params)
             .await?
             .into_data()?;
-        Ok(Node::new(self.client.clone(), &self.path, resp.id))
+        Ok(NodeClient::new(self.client.clone(), &self.path, resp.id))
     }
 
+    /// Starts all nodes.
     pub async fn start(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/start", self.path))
@@ -177,6 +182,7 @@ impl Nodes {
         Ok(())
     }
 
+    /// Stops all nodes.
     pub async fn stop(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/stop", self.path))
@@ -184,6 +190,7 @@ impl Nodes {
         Ok(())
     }
 
+    /// Wipes the config from all nodes.
     pub async fn wipe(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/wipe", self.path))
@@ -191,6 +198,9 @@ impl Nodes {
         Ok(())
     }
 
+    /// Exports the config of all nodes.
+    ///
+    /// TODO: only some might be supported, document that after checking
     pub async fn export(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/export", self.path))
@@ -199,14 +209,14 @@ impl Nodes {
     }
 }
 
-pub struct Node {
+pub struct NodeClient {
     client: Client,
     path: String,
     id: i32,
 }
 
-impl Node {
-    pub fn new(client: Client, path: &str, id: i32) -> Self {
+impl NodeClient {
+    pub(crate) fn new(client: Client, path: &str, id: i32) -> Self {
         Self {
             client,
             path: path.to_string(),
@@ -214,13 +224,15 @@ impl Node {
         }
     }
 
-    pub async fn get(&self) -> Result<NodeInfo> {
+    /// Gets the node's details.
+    pub async fn get(&self) -> Result<Node> {
         self.client
             .get(&format!("labs{}/nodes/{}", self.path, self.id))
             .await?
             .into_data()
     }
 
+    /// Updates the node's details.
     pub async fn edit(&self, params: &EditNodeRequest) -> Result<()> {
         self.client
             .put::<(), EditNodeRequest>(&format!("labs{}/nodes/{}", self.path, self.id), params)
@@ -228,13 +240,15 @@ impl Node {
         Ok(())
     }
 
-    pub async fn delete(&self) -> Result<()> {
+    /// Deletes the node.
+    pub async fn delete(self) -> Result<()> {
         self.client
             .delete::<()>(&format!("labs{}/nodes/{}", self.path, self.id))
             .await?;
         Ok(())
     }
 
+    /// Starts the node.
     pub async fn start(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/start", self.path, self.id))
@@ -242,6 +256,7 @@ impl Node {
         Ok(())
     }
 
+    /// Stops the node.
     pub async fn stop(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/stop", self.path, self.id))
@@ -249,6 +264,9 @@ impl Node {
         Ok(())
     }
 
+    /// Wipes the node's config.
+    ///
+    /// TODO: Explain what wipe does
     pub async fn wipe(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/wipe", self.path, self.id))
@@ -256,6 +274,9 @@ impl Node {
         Ok(())
     }
 
+    /// Exports the node's config.
+    ///
+    /// TODO: Explain what export does
     pub async fn export(&self) -> Result<()> {
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/export", self.path, self.id))
@@ -263,6 +284,7 @@ impl Node {
         Ok(())
     }
 
+    /// Gets a node's interfaces.
     pub async fn interfaces(&self) -> Result<Interfaces> {
         self.client
             .get(&format!("labs{}/nodes/{}/interfaces", self.path, self.id))

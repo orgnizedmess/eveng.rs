@@ -1,15 +1,15 @@
-//! Endpoints for working with labs within a folder.
+//! Clients and models for managing labs within a folder.
 
-use crate::networks::{Network, Networks};
-use crate::nodes::{Node, Nodes};
+use crate::networks::{NetworkClient, NetworksClient};
+use crate::nodes::{NodeClient, NodesClient};
 use crate::utils::validate_name;
 use crate::utils::{map_or_empty_seq, nested_map_or_empty_seq, number_from_string};
-use crate::{Client, Error, Result};
+use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LabInfo {
+pub struct Lab {
     pub author: String,
     pub body: String,
     pub description: String,
@@ -83,27 +83,32 @@ pub struct Links {
     pub serial: HashMap<i32, HashMap<i32, String>>,
 }
 
-pub struct Labs {
+pub struct LabsClient {
     client: Client,
     path: String,
 }
 
-impl Labs {
-    pub fn new(client: Client, path: &str) -> Self {
+impl LabsClient {
+    pub(crate) fn new(client: Client, path: &str) -> Self {
         Self {
             client,
             path: path.to_string(),
         }
     }
 
-    pub async fn add(&self, params: &CreateLabRequest) -> Result<Lab> {
+    /// Creates a new lab.
+    pub async fn add(&self, params: &CreateLabRequest) -> Result<LabClient> {
         validate_name(&params.name)?;
 
         self.client
             .post::<(), CreateLabRequest>("labs", params)
             .await?;
 
-        Ok(Lab::new(self.client.clone(), &self.path, &params.name))
+        Ok(LabClient::new(
+            self.client.clone(),
+            &self.path,
+            &params.name,
+        ))
     }
 }
 
@@ -148,36 +153,43 @@ impl std::fmt::Display for LabPath {
     }
 }
 
-pub struct Lab {
+pub struct LabClient {
     client: Client,
     path: LabPath,
 }
 
-impl Lab {
-    pub fn new(client: Client, path: &str, name: &str) -> Self {
+impl LabClient {
+    pub(crate) fn new(client: Client, path: &str, name: &str) -> Self {
         Self {
             client,
             path: LabPath::new(path, name),
         }
     }
 
-    pub async fn get(&self) -> Result<LabInfo> {
+    /// Gets the lab's details.
+    pub async fn get(&self) -> Result<Lab> {
         self.client
             .get(&format!("labs{}", self.path))
             .await?
             .into_data()
     }
 
-    // Docs specify that only one parameter can be changed per request, but
-    // editing multiple parameters works?
+    /// Updates the lab's details.
+    ///
+    /// To change the lab's name, see [`rename`](Self::rename()).
     pub async fn edit(&self, params: &EditLabRequest) -> Result<()> {
+        // Docs specify that only one parameter can be changed per request, but
+        // editing multiple parameters works?
         self.client
             .put::<(), EditLabRequest>(&format!("labs{}", self.path), params)
             .await?;
         Ok(())
     }
 
-    pub async fn rename(self, name: &str) -> Result<Lab> {
+    /// Renames the lab.
+    ///
+    /// To update other lab details, see [`edit`](Self::edit).
+    pub async fn rename(self, name: &str) -> Result<LabClient> {
         validate_name(name)?;
 
         #[derive(Debug, Serialize)]
@@ -192,25 +204,35 @@ impl Lab {
             .put::<(), RenameLabRequest>(&format!("labs{}", self.path), params)
             .await?;
 
-        Ok(Lab::new(self.client.clone(), self.path.folder(), name))
+        Ok(LabClient::new(
+            self.client.clone(),
+            self.path.folder(),
+            name,
+        ))
     }
 
-    pub async fn move_to(self, path: &str) -> Result<Lab> {
+    /// Moves the lab to the specified path.
+    pub async fn move_to(self, folder_path: &str) -> Result<LabClient> {
         #[derive(Debug, Serialize)]
         struct MoveLabRequest {
             path: String,
         }
 
         let params = &MoveLabRequest {
-            path: path.to_string(),
+            path: folder_path.to_string(),
         };
         self.client
             .put::<(), MoveLabRequest>(&format!("labs{}/move", self.path), params)
             .await?;
 
-        Ok(Lab::new(self.client.clone(), path, self.path.lab_name()))
+        Ok(LabClient::new(
+            self.client.clone(),
+            folder_path,
+            self.path.lab_name(),
+        ))
     }
 
+    /// Deletes the lab.
     pub async fn delete(self) -> Result<()> {
         self.client
             .delete::<()>(&format!("labs{}", self.path))
@@ -218,6 +240,7 @@ impl Lab {
         Ok(())
     }
 
+    /// Locks the lab.
     pub async fn lock(&self) -> Result<()> {
         self.client
             .put::<(), ()>(&format!("labs{}/Lock", self.path), &())
@@ -225,6 +248,7 @@ impl Lab {
         Ok(())
     }
 
+    /// Unlocks the lab.
     pub async fn unlock(&self) -> Result<()> {
         self.client
             .put::<(), ()>(&format!("labs{}/Unlock", self.path), &())
@@ -232,6 +256,7 @@ impl Lab {
         Ok(())
     }
 
+    /// Lists the lab's topology.
     pub async fn topology(&self) -> Result<Vec<TopologyEntry>> {
         self.client
             .get(&format!("labs{}/topology", self.path))
@@ -239,6 +264,8 @@ impl Lab {
             .into_data()
     }
 
+    /// Lists all remote endpoints for both ethernet and serial interfaces in
+    /// the lab.
     pub async fn links(&self) -> Result<Links> {
         self.client
             .get(&format!("labs{}/links", self.path))
@@ -246,20 +273,20 @@ impl Lab {
             .into_data()
     }
 
-    pub fn nodes(&self) -> Nodes {
-        Nodes::new(self.client.clone(), &self.path.as_str())
+    pub fn nodes(&self) -> NodesClient {
+        NodesClient::new(self.client.clone(), self.path.as_str())
     }
 
-    pub fn node(&self, id: i32) -> Node {
-        Node::new(self.client.clone(), &self.path.as_str(), id)
+    pub fn node(&self, id: i32) -> NodeClient {
+        NodeClient::new(self.client.clone(), self.path.as_str(), id)
     }
 
-    pub fn networks(&self) -> Networks {
-        Networks::new(self.client.clone(), &self.path.as_str())
+    pub fn networks(&self) -> NetworksClient {
+        NetworksClient::new(self.client.clone(), self.path.as_str())
     }
 
-    pub fn network(&self, id: i32) -> Network {
-        Network::new(self.client.clone(), &self.path.as_str(), id)
+    pub fn network(&self, id: i32) -> NetworkClient {
+        NetworkClient::new(self.client.clone(), self.path.as_str(), id)
     }
 }
 
