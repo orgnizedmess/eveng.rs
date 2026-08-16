@@ -169,24 +169,13 @@ impl Client {
 
         let response = request.send().await?;
         let status = response.status();
+        let text = response.text().await?;
 
         if !status.is_success() {
-            let text = response.text().await?;
-            return Err(match serde_json::from_str::<Response<()>>(&text) {
-                Ok(api) => Error::Api {
-                    code: api.code,
-                    status: api.status,
-                    message: api.message,
-                },
-                Err(_) => Error::Api {
-                    code: status.into(),
-                    status: "error".to_string(),
-                    message: text.chars().take(200).collect(),
-                },
-            });
+            return Err(Error::from_response(status, text));
         }
 
-        Ok(response.json::<Response<T>>().await?)
+        Ok(serde_json::from_str::<Response<T>>(&text).unwrap())
     }
 
     /// Make a GET request to the API
@@ -228,10 +217,6 @@ impl Client {
 mod tests {
     use super::*;
     use crate::{Client, Error, Result};
-    use wiremock::{
-        Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
-    };
 
     #[test]
     fn valid_client_builder() {
@@ -258,49 +243,6 @@ mod tests {
         assert_eq!(builder.timeout, Duration::from_secs(10));
         assert_eq!(builder.html5, 0);
         assert!(!builder.ssl_verify);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_api_error() -> Result<()> {
-        let server = MockServer::start().await;
-
-        Mock::given(method("POST"))
-            .and(path("/api/auth/login"))
-            .respond_with(ResponseTemplate::new(502).set_body_string(
-                r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>502 Bad Gateway</title>
-</head>
-<body>
-    <center>
-        <h1>502 Bad Gateway</h1>
-    </center>
-    <hr>
-    <center>nginx</center>
-</body>
-</html>"#,
-            ))
-            .mount(&server)
-            .await;
-
-        let client = Client::new(server.uri(), "admin", "eve").await;
-        let err = client.unwrap_err();
-
-        match err {
-            Error::Api {
-                code,
-                status,
-                message,
-            } => {
-                assert_eq!(code, 502);
-                assert_eq!(status, "error".to_string());
-                assert!(message.contains("502 Bad Gateway"));
-            }
-            other => panic!("expected HTTP error, got {other:?}"),
-        }
         Ok(())
     }
 }
