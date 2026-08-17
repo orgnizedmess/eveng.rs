@@ -2,7 +2,7 @@
 
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::{NodeClient, NodesClient};
-use crate::utils::validate_name;
+use crate::utils::validate_pathname;
 use crate::utils::{map_or_empty_seq, nested_map_or_empty_seq, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
@@ -98,7 +98,7 @@ impl LabsClient {
 
     /// Creates a new lab.
     pub async fn add(&self, params: &CreateLabRequest) -> Result<LabClient> {
-        validate_name(&params.name)?;
+        validate_pathname(&params.name)?;
 
         self.client
             .post::<(), CreateLabRequest>("labs", params)
@@ -190,7 +190,7 @@ impl LabClient {
     ///
     /// To update other lab details, see [`edit`](Self::edit).
     pub async fn rename(self, name: &str) -> Result<LabClient> {
-        validate_name(name)?;
+        validate_pathname(name)?;
 
         #[derive(Debug, Serialize)]
         struct RenameLabRequest {

@@ -25,8 +25,8 @@ pub enum Error {
     #[error("Expected data in response but got none")]
     MissingData,
 
-    #[error("Invalid name '{name}', contains invalid character '{c}'")]
-    InvalidName { name: String, c: char },
+    #[error("Invalid name, contains invalid character '{0}'")]
+    InvalidName(char),
 
     #[error("Error while parsing an URL: {0:#?}")]
     Url(#[from] url::ParseError),

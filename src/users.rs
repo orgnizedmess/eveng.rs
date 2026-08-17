@@ -1,61 +1,37 @@
 //! Clients and models for managing users on the EVE-NG instance.
 
-use crate::utils::WireMap;
+use crate::utils::{WireMap, validate_name};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct User {
     pub email: String,
-    #[serde(deserialize_with = "number_from_string")]
-    pub expiration: i32,
+    /// UNIX timestamp
+    pub expiration: i64,
+    pub name: String,
+    pub pod: i32,
+    pub role: String,
+    pub username: String,
+    /// Current folder
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
-    pub ip: String,
+    /// Last session IP
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ip: Option<String>,
+    /// Current lab
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lab: Option<String>,
-    pub name: String,
-    #[serde(deserialize_with = "number_from_string")]
-    pub pexpiration: i32,
-    #[serde(deserialize_with = "number_from_string")]
-    pub pod: i32,
-    pub role: String,
-    #[serde(deserialize_with = "number_from_string")]
-    pub session: i32,
-    pub username: String,
-}
-#[derive(Default, Serialize)]
-pub struct CreateUserRequest {
-    pub username: String,
-    pub password: String,
-    pub role: String,
-    pub pod: i32,
+    /// Pod expiration
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
+    pub pexpiration: Option<i32>,
+    /// Last session time as a UNIX timestamp
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expiration: Option<i32>,
+    pub session: Option<u64>,
 }
 
-#[derive(Default, Serialize)]
-pub struct EditUserRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub password: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub role: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pod: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expiration: Option<i32>,
-}
-
-/// A client for managing users.
+/// A client to manage users.
 pub struct UsersClient {
     client: Client,
 }
@@ -75,10 +51,10 @@ impl UsersClient {
             .0)
     }
 
-    /// Creates a new user.
-    pub async fn add(&self, params: &CreateUserRequest) -> Result<UserClient> {
+    /// Adds a new user.
+    pub async fn add(&self, params: AddUserRequest) -> Result<UserClient> {
         self.client
-            .post::<(), CreateUserRequest>("users", params)
+            .post::<(), AddUserRequest>("users", &params)
             .await?;
         Ok(UserClient::new(self.client.clone(), &params.username))
     }
@@ -106,19 +82,145 @@ impl UserClient {
             .into_data()
     }
 
-    /// Updates the user's details.
-    pub async fn edit(&self, params: &EditUserRequest) -> Result<()> {
+    /// Edits the user's details.
+    pub async fn edit(&self, params: EditUserRequest) -> Result<()> {
         self.client
-            .put::<(), EditUserRequest>(&format!("users/{}", self.username), params)
+            .put::<(), EditUserRequest>(&format!("users/{}", self.username), &params)
             .await?;
         Ok(())
     }
 
-    /// Deletes a user.
+    /// Deletes the user.
     pub async fn delete(self) -> Result<()> {
         self.client
             .delete::<()>(&format!("users/{}", self.username))
             .await?;
         Ok(())
+    }
+}
+
+/// Validates the specified username.
+fn validate_username(username: impl Into<String>) -> Result<()> {
+    validate_name(username, &['_', '-'])
+}
+
+/// Request for adding a user.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct AddUserRequest {
+    username: String,
+    password: String,
+    role: String,
+    expiration: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+}
+
+impl AddUserRequest {
+    /// Creates a new request for adding a user.
+    ///
+    /// `username` must contain only letters, digits, `-`, and `_`.
+    pub fn new(
+        username: impl Into<String>,
+        password: impl Into<String>,
+        role: impl Into<String>,
+    ) -> Result<Self> {
+        let username = username.into();
+        validate_username(&username)?;
+
+        Ok(Self {
+            username,
+            password: password.into(),
+            role: role.into(),
+            expiration: -1,
+            ..Default::default()
+        })
+    }
+
+    /// Sets the user's email.
+    pub fn email(mut self, email: impl Into<String>) -> Self {
+        self.email = Some(email.into());
+        self
+    }
+
+    /// Sets the date on which the user's validity expires, as a UNIX timestamp.
+    /// Defaults to `-1`, meaning the user never expires.
+    pub fn expiration(mut self, expiration: i64) -> Self {
+        self.expiration = expiration;
+        self
+    }
+
+    /// Sets the user's display name.
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+}
+
+/// Request for editing a user.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct EditUserRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expiration: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    role: Option<String>,
+}
+
+impl EditUserRequest {
+    /// Creates a new request for editing a user.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Sets the user's password.
+    pub fn password(mut self, password: impl Into<String>) -> Self {
+        self.password = Some(password.into());
+        self
+    }
+
+    /// Sets the user's role.
+    pub fn role(mut self, role: impl Into<String>) -> Self {
+        self.role = Some(role.into());
+        self
+    }
+
+    /// Sets the user's email.
+    pub fn email(mut self, email: impl Into<String>) -> Self {
+        self.email = Some(email.into());
+        self
+    }
+
+    /// Sets the date on which the user's validity expires, as a UNIX timestamp.
+    pub fn expiration(mut self, expiration: i64) -> Self {
+        self.expiration = Some(expiration);
+        self
+    }
+
+    /// Sets the user's display name.
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Error;
+
+    #[test]
+    fn validate_user_name() {
+        let result = validate_username("test");
+        assert!(result.is_ok());
+
+        let result = validate_username("test user");
+        assert!(matches!(result, Err(Error::InvalidName(' '))));
     }
 }

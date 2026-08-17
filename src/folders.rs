@@ -1,7 +1,7 @@
 //! Clients and models for managing folders on the EVE-NG instance.
 
 use crate::labs::{LabClient, LabsClient};
-use crate::utils::validate_name;
+use crate::utils::validate_pathname;
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ impl FoldersClient {
 
     /// Creates a new folder.
     pub async fn add(&self, params: &FolderEntry) -> Result<FolderClient> {
-        validate_name(&params.name)?;
+        validate_pathname(&params.name)?;
 
         self.client
             .post::<(), FolderEntry>("folders", params)
@@ -113,7 +113,7 @@ impl FolderClient {
 
     // Renames the folder.
     pub async fn rename(self, name: &str) -> Result<FolderClient> {
-        validate_name(name)?;
+        validate_pathname(name)?;
 
         let new_path = FolderPath::from_parts(self.path.parent(), name);
         self.edit(new_path.as_str()).await?;

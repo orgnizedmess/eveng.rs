@@ -109,24 +109,28 @@ where
     }
 }
 
-pub(crate) fn validate_name(name: &str) -> crate::Result<()> {
-    if let Some(c) = name.chars().find(|c| !is_allowed_char(c)) {
-        return Err(crate::Error::InvalidName {
-            name: name.to_string(),
-            c,
-        });
+/// Validation for names in EVE-NG. Allows for letters, digits
+/// and an additional set of characters depending on the caller.
+pub(crate) fn validate_name(name: impl Into<String>, extra: &[char]) -> crate::Result<()> {
+    let name = name.into();
+    if let Some(c) = name
+        .chars()
+        .find(|c| !(c.is_ascii_alphanumeric() || extra.contains(c)))
+    {
+        return Err(crate::Error::InvalidName(c));
     }
     Ok(())
 }
 
-fn is_allowed_char(c: &char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_')
+/// Validates the specified path name, which could be a folder or a lab name.
+pub(crate) fn validate_pathname(pathname: impl Into<String>) -> crate::Result<()> {
+    validate_name(pathname, &['_', '-', ' '])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Result;
+    use crate::{Error, Result};
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
@@ -201,9 +205,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = crate::Client::builder(server.uri())?
-            .login("admin", "eve")
-            .await?;
+        let client = crate::Client::new(server.uri(), "admin", "eve").await?;
         assert!(
             client
                 .folder("/")
@@ -226,26 +228,19 @@ mod tests {
 
     #[test]
     fn validate_folder_name() {
-        let result = validate_name("Test Folder");
+        let result = validate_pathname("Test Folder");
         assert!(result.is_ok());
 
-        let result = validate_name("/New Folder");
-        assert!(result.is_err());
-
-        let message = result.unwrap_err().to_string();
-        assert!(message.contains("contains invalid character '/'"));
+        let result = validate_pathname("New+Folder");
+        assert!(matches!(result, Err(Error::InvalidName('+'))));
     }
 
     #[test]
     fn validate_lab_name() {
-        let result = validate_name("Test");
+        let result = validate_pathname("Test");
         assert!(result.is_ok());
 
-        // Functions take names without the extension
-        let result = validate_name("Test.unl");
-        assert!(result.is_err());
-
-        let message = result.unwrap_err().to_string();
-        assert!(message.contains("contains invalid character '.'"));
+        let result = validate_pathname("Test%");
+        assert!(matches!(result, Err(Error::InvalidName('%'))));
     }
 }
