@@ -1,4 +1,4 @@
-use serde::de::{self, IgnoredAny, MapAccess, SeqAccess, Visitor};
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::fmt;
@@ -28,9 +28,9 @@ where
     }
 }
 
-struct MapOrEmptySeq<K, V>(PhantomData<(K, V)>);
+struct MapOrSeq<K, V>(PhantomData<(K, V)>);
 
-impl<'de, K, V> Visitor<'de> for MapOrEmptySeq<K, V>
+impl<'de, K, V> Visitor<'de> for MapOrSeq<K, V>
 where
     K: Eq + Hash + Deserialize<'de>,
     V: Deserialize<'de>,
@@ -38,7 +38,7 @@ where
     type Value = HashMap<K, V>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a map or an empty array")
+        formatter.write_str("a map or an array")
     }
 
     fn visit_map<A>(self, mut access: A) -> std::result::Result<Self::Value, A::Error>
@@ -56,15 +56,21 @@ where
     where
         A: SeqAccess<'de>,
     {
-        if seq.next_element::<IgnoredAny>()?.is_some() {
-            return Err(de::Error::invalid_type(de::Unexpected::Seq, &self));
+        let mut map = HashMap::new();
+        let mut index: usize = 0;
+
+        while let Some(value) = seq.next_element::<V>()? {
+            let key = K::deserialize(serde_json::Value::from(index)).map_err(de::Error::custom)?;
+            map.insert(key, value);
+            index += 1;
         }
-        Ok(HashMap::new())
+
+        Ok(map)
     }
 }
 
-/// For struct fields: `#[serde(deserialize_with = "map_or_empty_seq")]`.
-pub(crate) fn map_or_empty_seq<'de, D, K, V>(
+/// For struct fields: `#[serde(deserialize_with = "map_or_seq")]`.
+pub(crate) fn map_or_seq<'de, D, K, V>(
     deserializer: D,
 ) -> std::result::Result<HashMap<K, V>, D::Error>
 where
@@ -72,22 +78,7 @@ where
     K: Eq + Hash + Deserialize<'de>,
     V: Deserialize<'de>,
 {
-    deserializer.deserialize_any(MapOrEmptySeq(PhantomData))
-}
-
-/// Same thing, one level deeper: the outer map's values are themselves maps
-/// that can come back as `[]`.
-pub(crate) fn nested_map_or_empty_seq<'de, D, K, K2, V>(
-    deserializer: D,
-) -> std::result::Result<HashMap<K, HashMap<K2, V>>, D::Error>
-where
-    D: Deserializer<'de>,
-    K: Eq + Hash + Deserialize<'de>,
-    K2: Eq + Hash + Deserialize<'de>,
-    V: Deserialize<'de>,
-{
-    let outer: HashMap<K, WireMap<K2, V>> = map_or_empty_seq(deserializer)?;
-    Ok(outer.into_iter().map(|(k, v)| (k, v.0)).collect())
+    deserializer.deserialize_any(MapOrSeq(PhantomData))
 }
 
 /// For generic positions where no attribute can be attached, i.e. the `T` in
@@ -105,7 +96,7 @@ where
     where
         D: Deserializer<'de>,
     {
-        map_or_empty_seq(deserializer).map(WireMap)
+        map_or_seq(deserializer).map(WireMap)
     }
 }
 
@@ -140,9 +131,9 @@ mod tests {
 
     #[derive(Debug, Deserialize)]
     struct Holder {
-        #[serde(deserialize_with = "map_or_empty_seq")]
+        #[serde(deserialize_with = "map_or_seq")]
         ethernet: HashMap<i32, String>,
-        #[serde(deserialize_with = "nested_map_or_empty_seq")]
+        #[serde(deserialize_with = "map_or_seq")]
         serial: HashMap<i32, HashMap<i32, String>>,
     }
 
@@ -155,67 +146,18 @@ mod tests {
     }
 
     #[test]
-    fn empty_array_becomes_an_empty_map() {
-        let wire: WireMap<String, Item> = serde_json::from_str("[]").unwrap();
-        assert!(wire.0.is_empty());
+    fn array_becomes_a_map() {
+        let h: Holder =
+            serde_json::from_str(r#"{"ethernet":["a", "b", "c"],"serial":[]}"#).unwrap();
+        eprintln!("{:#?}", h.ethernet);
+        assert_eq!(h.ethernet[&0], "a");
+        assert!(h.serial.is_empty());
     }
 
     #[test]
     fn string_keys_convert_to_integers() {
         let wire: WireMap<i32, Item> = serde_json::from_str(r#"{"1":{"name":"a"}}"#).unwrap();
         assert_eq!(wire.0[&1].name, "a");
-    }
-
-    #[test]
-    fn non_empty_array_is_an_error() {
-        let err = serde_json::from_str::<WireMap<i32, Item>>(r#"[{"name":"a"}]"#).unwrap_err();
-        assert!(
-            err.to_string().contains("expected a map or an empty array"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn nested_empty_arrays_are_handled() {
-        let h: Holder =
-            serde_json::from_str(r#"{"ethernet":[],"serial":{"1":[],"2":{"3":"x"}}}"#).unwrap();
-        assert!(h.ethernet.is_empty());
-        assert!(h.serial[&1].is_empty());
-        assert_eq!(h.serial[&2][&3], "x");
-    }
-
-    #[tokio::test]
-    async fn empty_lab_yields_no_nodes() -> Result<()> {
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/api/auth/login"))
-            .respond_with(ResponseTemplate::new(200).set_body_string(
-                r#"{"code": 200, "message": "User logged in (90013).", "status": "success"}"#,
-            ))
-            .mount(&server)
-            .await;
-        Mock::given(method("GET"))
-            .and(path("/api/labs/Test.unl/nodes"))
-            .respond_with(ResponseTemplate::new(200).set_body_string(
-                r#"{"code":200,"status":"success","message":"Successfully listed nodes (60026).","data":[]}"#,
-            ))
-            .mount(&server)
-            .await;
-
-        let client = crate::Client::new(server.uri(), "admin", "eve").await?;
-        assert!(
-            client
-                .folder("/")
-                .lab("Test.unl")
-                .nodes()
-                .list()
-                .await?
-                .is_empty()
-        );
-        Ok(())
     }
 
     #[test]

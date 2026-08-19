@@ -3,7 +3,7 @@
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::{NodeClient, NodesClient};
 use crate::utils::validate_pathname;
-use crate::utils::{map_or_empty_seq, nested_map_or_empty_seq, number_from_string};
+use crate::utils::{map_or_seq, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -77,9 +77,9 @@ pub struct TopologyEntry {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Links {
-    #[serde(deserialize_with = "map_or_empty_seq")]
+    #[serde(deserialize_with = "map_or_seq")]
     pub ethernet: HashMap<i32, String>,
-    #[serde(deserialize_with = "nested_map_or_empty_seq")]
+    #[serde(deserialize_with = "map_or_seq")]
     pub serial: HashMap<i32, HashMap<i32, String>>,
 }
 
