@@ -28,6 +28,14 @@ where
     }
 }
 
+pub(crate) fn empty_string_is_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.is_empty() { Ok(None) } else { Ok(Some(s)) }
+}
+
 struct MapOrSeq<K, V>(PhantomData<(K, V)>);
 
 impl<'de, K, V> Visitor<'de> for MapOrSeq<K, V>

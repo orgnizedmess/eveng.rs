@@ -6,7 +6,7 @@ use eveng::nodes::{CreateNodeRequest, EditNodeRequest, NodeType, VpcsParams};
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let nodes = client.folder("/").lab("kimpfler-test.unl").nodes();
+    let lab = client.folder("/").lab("Test1");
 
     // List
     let resp = nodes.list().await?;
@@ -23,7 +23,7 @@ pub async fn main() -> Result<()> {
             delay: 0,
             left: 0,
             top: 0,
-            postfix: 0,
+            //postfix: 0,
             node_type: NodeType::Vpcs(VpcsParams { ethernet: 1 }),
         })
         .await?;

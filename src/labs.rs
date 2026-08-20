@@ -3,64 +3,47 @@
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::{NodeClient, NodesClient};
 use crate::utils::validate_pathname;
-use crate::utils::{map_or_seq, number_from_string};
+use crate::utils::{empty_string_is_none, map_or_seq, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Lab {
-    pub author: String,
-    pub body: String,
-    pub description: String,
-    // without extension, with extension returns an error
+    /// Name of the lab file without the path.
     pub filename: String,
-    // uuid style ids
-    pub id: Option<String>,
-    // Mentioned in source code but not in API docs, value is 0 or 1
-    #[serde(deserialize_with = "number_from_string")]
-    pub lock: i32,
-    pub name: String,
-    pub scripttimeout: i32,
-    #[serde(deserialize_with = "number_from_string")]
-    pub version: i32,
-}
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateLabRequest {
-    pub name: String,
-    pub path: String,
-    pub version: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scripttimeout: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub author: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub body: Option<String>,
-}
+    pub id: String,
 
-// From the source code:
-// If an attribute is set and is valid, then it will be used
-// If an attribute is not set, then the original is maintained.
-// If an attribute is set and empty, then the current one is deleted.
-//
-// Seems kind of important, because then I have to make the distinction between
-// None and empty values clear via the API design or docs.
-// But also, would this only apply to strings?
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EditLabRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lock: u8,
+
+    /// Name of the lab file, without the path and extension.
+    pub name: String,
+
+    /// Value in seconds used for the “Configuration Export” and “Boot from
+    /// exported configs” operations
+    pub scripttimeout: u32,
+
+    #[serde(deserialize_with = "number_from_string")]
+    pub version: u32,
+
+    #[serde(
+        deserialize_with = "empty_string_is_none",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub author: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+
+    #[serde(
+        deserialize_with = "empty_string_is_none",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub body: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+
+    #[serde(
+        deserialize_with = "empty_string_is_none",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scripttimeout: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

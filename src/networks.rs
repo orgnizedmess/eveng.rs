@@ -7,41 +7,45 @@ use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Network {
-    pub count: i32,
+    /// Number of connected nodes.
+    pub count: u32,
+
     pub icon: String,
-    // appears in /networks, not in /networks/{id}
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i32>,
-    pub left: i32,
+    pub left: u32,
     pub name: String,
-    pub top: i32,
+    pub top: u32,
+
     #[serde(rename = "type")]
     pub network_type: String,
+
     #[serde(deserialize_with = "number_from_string")]
-    pub visibility: i32,
+    pub visibility: u8,
+
+    // appears in /networks, not in /networks/{id}
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateNetworkRequest {
-    pub count: i32,
     #[serde(rename = "type")]
     pub network_type: String,
     // not visible (haha) in the create page but visible (heheh) in the API request
     // Create will return successfully without it, but not actually list any nodes
     // WAT
-    pub visibility: i32,
+    pub visibility: u8,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     // API shows percentage values but regular ints works on my instance
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub left: Option<i32>,
+    pub left: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub postfix: Option<i32>,
+    //#[serde(skip_serializing_if = "Option::is_none")]
+    //pub postfix: Option<i32>,
     // API shows percentage values but regular ints works on my instance
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<i32>,
+    pub top: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,13 +62,13 @@ pub struct EditNetworkRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub left: Option<i32>,
+    pub left: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<i32>,
+    pub top: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub visibility: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub postfix: Option<i32>,
+    pub visibility: Option<u8>,
+    //#[serde(skip_serializing_if = "Option::is_none")]
+    //pub postfix: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -2,7 +2,7 @@
 
 use crate::interfaces::InterfaceType;
 use crate::interfaces::{InterfaceClient, InterfacesClient};
-use crate::utils::{WireMap, number_from_string};
+use crate::utils::{WireMap, empty_string_is_none, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -10,39 +10,56 @@ use std::collections::HashMap;
 #[derive(Debug, Deserialize)]
 pub struct Node {
     #[serde(deserialize_with = "number_from_string")]
-    pub config: i32,
-    pub console: String,
-    pub delay: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub config_list: Option<Vec<serde_json::Value>>,
+    pub config: u32,
+
+    pub delay: u32,
     pub icon: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i32>,
-    pub image: String,
-    pub left: i32,
+    pub left: u32,
     pub name: String,
+
     #[serde(flatten)]
     pub node_type: NodeType,
-    pub status: i32,
+
+    pub status: u32,
     pub template: String,
-    pub top: i32,
+    pub top: u32,
     pub url: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_list: Option<Vec<serde_json::Value>>,
+
+    #[serde(
+        deserialize_with = "empty_string_is_none",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub console: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<u32>,
+
+    #[serde(
+        deserialize_with = "empty_string_is_none",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub image: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uuid: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct CreateNodeRequest {
     pub config: String,
-    pub count: i32,
-    pub delay: i32,
+    pub count: u32,
+    pub delay: u32,
     pub icon: String,
-    pub left: i32,
+    pub left: u32,
     pub name: String,
     #[serde(flatten)]
     pub node_type: NodeType,
-    pub postfix: i32,
+    //pub postfix: u32,
     pub template: String,
-    pub top: i32,
+    pub top: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -50,15 +67,15 @@ pub struct EditNodeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub delay: Option<i32>,
+    pub delay: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub left: Option<i32>,
+    pub left: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<i32>,
+    pub top: Option<u32>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub node_type: Option<NodeType>,
 }

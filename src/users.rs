@@ -1,32 +1,55 @@
 //! Clients and models for managing users on the EVE-NG instance.
 
-use crate::utils::{WireMap, validate_name};
+use crate::utils::{WireMap, empty_string_is_none, validate_name};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct User {
-    pub email: String,
-    /// UNIX timestamp
+    /// Expiration date as a UNIX timestamp or `-1` for no expiry.
     pub expiration: i64,
-    pub name: String,
-    pub pod: i32,
+
+    /// A value representing a user profile. It is assigned automatically
+    /// and unique for each user.
+    pub pod: i8,
+
     pub role: String,
+
+    /// Letters, digits and `-`/`_` only.
     pub username: String,
-    /// Current folder
+
+    /// The user's email address.
+    #[serde(
+        deserialize_with = "empty_string_is_none",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub email: Option<String>,
+
+    /// Current folder.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
-    /// Last session IP
+
+    /// Last session IP.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ip: Option<String>,
-    /// Current lab
+
+    /// Current lab.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lab: Option<String>,
-    /// Pod expiration
+
+    /// The user's full name.
+    #[serde(
+        deserialize_with = "empty_string_is_none",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub name: Option<String>,
+
+    /// Pod expiration date as a UNIX timestamp or `-1` for no expiry.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pexpiration: Option<i32>,
-    /// Last session time as a UNIX timestamp
+    pub pexpiration: Option<i64>,
+
+    /// Last session time as a UNIX timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<u64>,
 }
