@@ -107,13 +107,12 @@ impl InterfaceClient {
 
                 let bridge = NetworksClient::new(self.client.clone(), &self.path)
                     .add(&CreateNetworkRequest {
-                        count: 1,
                         network_type: "bridge".to_string(),
                         visibility: 1,
                         icon: None,
                         left: None,
                         name: Some(format!("Net-{}iface{}", src_node.name, self.id)),
-                        postfix: None,
+                        //postfix: None,
                         top: None,
                     })
                     .await?;
@@ -128,7 +127,7 @@ impl InterfaceClient {
                         icon: None,
                         left: None,
                         name: None,
-                        postfix: None,
+                        // postfix: None,
                         top: None,
                     })
                     .await
@@ -162,13 +161,14 @@ impl InterfaceClient {
     pub async fn disconnect(&self) -> Result<()> {
         match self.iface_type {
             InterfaceType::Ethernet => {
-                let network_id = InterfacesClient::new(self.client.clone(), &self.path, self.node_id)
-                    .list()
-                    .await?
-                    .ethernet
-                    .remove(&self.id)
-                    .ok_or(Error::Invalid("Interface not found".to_string()))?
-                    .network_id;
+                let network_id =
+                    InterfacesClient::new(self.client.clone(), &self.path, self.node_id)
+                        .list()
+                        .await?
+                        .ethernet
+                        .remove(&self.id)
+                        .ok_or(Error::Invalid("Interface not found".to_string()))?
+                        .network_id;
 
                 let network = NetworkClient::new(self.client.clone(), &self.path, network_id);
                 if network.get().await?.network_type == "bridge" {

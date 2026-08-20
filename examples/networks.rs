@@ -15,13 +15,12 @@ pub async fn main() -> Result<()> {
     // Add
     let network = networks
         .add(&CreateNetworkRequest {
-            count: 1,
             visibility: 1,
             name: None,
             network_type: "bridge".to_string(),
             icon: None,
             left: None,
-            postfix: None,
+            //postfix: None,
             top: None,
         })
         .await?;
@@ -39,7 +38,7 @@ pub async fn main() -> Result<()> {
             left: None,
             top: None,
             visibility: None,
-            postfix: None,
+            // postfix: None,
         })
         .await?;
 

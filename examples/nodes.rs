@@ -23,7 +23,7 @@ pub async fn main() -> Result<()> {
             delay: 0,
             left: 0,
             top: 0,
-            postfix: 0,
+            //postfix: 0,
             node_type: NodeType::Vpcs(VpcsParams { ethernet: 1 }),
         })
         .await?;

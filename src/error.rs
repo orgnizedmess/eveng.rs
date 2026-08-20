@@ -32,8 +32,7 @@ pub enum Error {
     InvalidName(char),
 
     #[error("{0}")]
-    Invalid(String)
-
+    Invalid(String),
 }
 
 impl Error {
