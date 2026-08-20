@@ -14,6 +14,7 @@ mod error;
 mod utils;
 
 pub mod folders;
+pub mod interfaces;
 pub mod labs;
 pub mod networks;
 pub mod nodes;

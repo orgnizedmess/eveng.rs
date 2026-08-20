@@ -12,6 +12,9 @@ pub enum Error {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
+    #[error("Error while parsing an URL: {0:#?}")]
+    Url(#[from] url::ParseError),
+
     #[error("EVE-NG API error (status {status}): {message}")]
     Api {
         /// HTTP status code
@@ -28,8 +31,9 @@ pub enum Error {
     #[error("Invalid name, contains invalid character '{0}'")]
     InvalidName(char),
 
-    #[error("Error while parsing an URL: {0:#?}")]
-    Url(#[from] url::ParseError),
+    #[error("{0}")]
+    Invalid(String)
+
 }
 
 impl Error {

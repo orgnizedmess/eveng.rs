@@ -114,9 +114,9 @@ impl NetworksClient {
 }
 
 pub struct NetworkClient {
-    client: Client,
-    path: String,
-    id: i32,
+    pub(crate) client: Client,
+    pub(crate) path: String,
+    pub(crate) id: i32,
 }
 
 impl NetworkClient {

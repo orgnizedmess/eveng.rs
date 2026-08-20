@@ -1,5 +1,7 @@
 //! Clients and models for managing nodes within a lab.
 
+use crate::interfaces::InterfaceType;
+use crate::interfaces::{InterfaceClient, InterfacesClient};
 use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
@@ -123,23 +125,6 @@ pub struct DockerParams {
 pub struct VpcsParams {
     pub ethernet: i32,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Interface {
-    pub name: String,
-    pub network_id: i32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Interfaces {
-    pub ethernet: Vec<Interface>,
-    pub id: i32,
-    pub serial: Vec<Interface>,
-    pub sort: String,
-}
-
-// this alone doesn't explain what type is for what
-pub type EditInterfaceRequest = HashMap<i32, i32>;
 
 pub struct NodesClient {
     client: Client,
@@ -284,22 +269,27 @@ impl NodeClient {
         Ok(())
     }
 
-    /// Gets a node's interfaces.
-    pub async fn interfaces(&self) -> Result<Interfaces> {
-        self.client
-            .get(&format!("labs{}/nodes/{}/interfaces", self.path, self.id))
-            .await?
-            .into_data()
+    pub fn interfaces(&self) -> InterfacesClient {
+        InterfacesClient::new(self.client.clone(), &self.path, self.id)
     }
 
-    // Would connect_interface be a better name?
-    pub async fn edit_interface(&self, params: &EditInterfaceRequest) -> Result<()> {
-        self.client
-            .put::<(), EditInterfaceRequest>(
-                &format!("labs{}/nodes/{}/interfaces", self.path, self.id),
-                params,
-            )
-            .await?;
-        Ok(())
+    pub fn ethernet(&self, id: i32) -> InterfaceClient {
+        InterfaceClient::new(
+            self.client.clone(),
+            &self.path,
+            self.id,
+            id,
+            InterfaceType::Ethernet,
+        )
+    }
+
+    pub fn serial(&self, id: i32) -> InterfaceClient {
+        InterfaceClient::new(
+            self.client.clone(),
+            &self.path,
+            self.id,
+            id,
+            InterfaceType::Serial,
+        )
     }
 }
