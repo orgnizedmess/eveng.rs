@@ -1,4 +1,4 @@
-use crate::networks::{CreateNetworkRequest, EditNetworkRequest};
+use crate::networks::{AddNetworkRequest, EditNetworkRequest};
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::NodeClient;
 use crate::utils::map_or_seq;
@@ -16,14 +16,14 @@ pub enum Interface {
 #[serde(deny_unknown_fields)]
 pub struct EthernetInterface {
     pub name: String,
-    pub network_id: i32,
+    pub network_id: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SerialInterface {
     pub name: String,
-    pub remote_id: i32,
+    pub remote_id: u32,
     pub remote_if: i32,
     pub remote_if_name: String,
 }
@@ -32,11 +32,11 @@ pub struct SerialInterface {
 #[serde(deny_unknown_fields)]
 pub struct Interfaces {
     #[serde(deserialize_with = "map_or_seq")]
-    pub ethernet: HashMap<i32, EthernetInterface>,
+    pub ethernet: HashMap<u32, EthernetInterface>,
     #[serde(rename = "id")]
-    pub node_id: i32,
+    pub node_id: u32,
     #[serde(deserialize_with = "map_or_seq")]
-    pub serial: HashMap<i32, SerialInterface>,
+    pub serial: HashMap<u32, SerialInterface>,
     #[serde(rename = "sort")]
     pub node_type: String,
 }
@@ -44,11 +44,11 @@ pub struct Interfaces {
 pub struct InterfacesClient {
     client: Client,
     path: String,
-    node_id: i32,
+    node_id: u32,
 }
 
 impl InterfacesClient {
-    pub(crate) fn new(client: Client, path: impl Into<String>, node_id: i32) -> Self {
+    pub(crate) fn new(client: Client, path: impl Into<String>, node_id: u32) -> Self {
         Self {
             client,
             path: path.into(),
@@ -76,8 +76,8 @@ pub enum InterfaceType {
 pub struct InterfaceClient {
     client: Client,
     path: String,
-    node_id: i32,
-    id: i32,
+    node_id: u32,
+    id: u32,
     iface_type: InterfaceType,
 }
 
@@ -85,8 +85,8 @@ impl InterfaceClient {
     pub(crate) fn new(
         client: Client,
         path: impl Into<String>,
-        node_id: i32,
-        id: i32,
+        node_id: u32,
+        id: u32,
         iface_type: InterfaceType,
     ) -> Self {
         Self {
@@ -106,31 +106,16 @@ impl InterfaceClient {
                     .await?;
 
                 let bridge = NetworksClient::new(self.client.clone(), &self.path)
-                    .add(&CreateNetworkRequest {
-                        network_type: "bridge".to_string(),
-                        visibility: 1,
-                        icon: None,
-                        left: None,
-                        name: Some(format!("Net-{}iface{}", src_node.name, self.id)),
-                        //postfix: None,
-                        top: None,
-                    })
+                    .add(
+                        AddNetworkRequest::new("bridge")
+                            .name(format!("Net-{}iface{}", src_node.name, self.id)),
+                    )
                     .await?;
 
                 self.connect_to_network(&bridge).await?;
                 dest.connect_to_network(&bridge).await?;
 
-                bridge
-                    .edit(&EditNetworkRequest {
-                        network_type: None,
-                        visibility: Some(0),
-                        icon: None,
-                        left: None,
-                        name: None,
-                        // postfix: None,
-                        top: None,
-                    })
-                    .await
+                bridge.edit(EditNetworkRequest::new().visibility(0)).await
             }
             (InterfaceType::Serial, InterfaceType::Serial) => {
                 let serial_id = format!("{}:{}", dest.node_id, dest.id);

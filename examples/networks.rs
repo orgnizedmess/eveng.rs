@@ -1,29 +1,19 @@
 mod common;
 
 use eveng::Result;
-use eveng::networks::{CreateNetworkRequest, EditNetworkRequest};
+use eveng::networks::{AddNetworkRequest, EditNetworkRequest};
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let networks = client.folder("/").lab("Test.unl").networks();
+    let networks = client.folder("/").lab("kimpfler-test.unl").networks();
 
     // List
     let resp = networks.list().await?;
     eprintln!("{:#?}", resp);
 
     // Add
-    let network = networks
-        .add(&CreateNetworkRequest {
-            visibility: 1,
-            name: None,
-            network_type: "bridge".to_string(),
-            icon: None,
-            left: None,
-            //postfix: None,
-            top: None,
-        })
-        .await?;
+    let network = networks.add(AddNetworkRequest::new("bridge")).await?;
 
     // Before
     let resp = network.get().await?;
@@ -31,15 +21,7 @@ pub async fn main() -> Result<()> {
 
     // Edit
     network
-        .edit(&EditNetworkRequest {
-            name: Some("vmbr0".to_string()),
-            network_type: None,
-            icon: None,
-            left: None,
-            top: None,
-            visibility: None,
-            // postfix: None,
-        })
+        .edit(EditNetworkRequest::new().name("vmbr0"))
         .await?;
 
     // After

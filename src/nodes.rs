@@ -82,7 +82,7 @@ pub struct EditNodeRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateNodeResponse {
-    pub id: i32,
+    pub id: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -157,10 +157,10 @@ impl NodesClient {
     }
 
     /// Lists all nodes.
-    pub async fn list(&self) -> Result<HashMap<i32, Node>> {
+    pub async fn list(&self) -> Result<HashMap<u32, Node>> {
         Ok(self
             .client
-            .get::<WireMap<i32, Node>>(&format!("labs{}/nodes", self.path))
+            .get::<WireMap<u32, Node>>(&format!("labs{}/nodes", self.path))
             .await?
             .into_data()?
             .0)
@@ -214,11 +214,11 @@ impl NodesClient {
 pub struct NodeClient {
     client: Client,
     path: String,
-    id: i32,
+    id: u32,
 }
 
 impl NodeClient {
-    pub(crate) fn new(client: Client, path: &str, id: i32) -> Self {
+    pub(crate) fn new(client: Client, path: &str, id: u32) -> Self {
         Self {
             client,
             path: path.to_string(),
@@ -290,7 +290,7 @@ impl NodeClient {
         InterfacesClient::new(self.client.clone(), &self.path, self.id)
     }
 
-    pub fn ethernet(&self, id: i32) -> InterfaceClient {
+    pub fn ethernet(&self, id: u32) -> InterfaceClient {
         InterfaceClient::new(
             self.client.clone(),
             &self.path,
@@ -300,7 +300,7 @@ impl NodeClient {
         )
     }
 
-    pub fn serial(&self, id: i32) -> InterfaceClient {
+    pub fn serial(&self, id: u32) -> InterfaceClient {
         InterfaceClient::new(
             self.client.clone(),
             &self.path,
