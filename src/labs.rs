@@ -253,7 +253,7 @@ impl LabClient {
     }
 
     /// Returns a client to manage a single node.
-    pub fn node(&self, id: i32) -> NodeClient {
+    pub fn node(&self, id: u32) -> NodeClient {
         NodeClient::new(self.client.clone(), self.path.as_str(), id)
     }
 
@@ -263,7 +263,7 @@ impl LabClient {
     }
 
     /// Returns a client to manage a single network.
-    pub fn network(&self, id: i32) -> NetworkClient {
+    pub fn network(&self, id: u32) -> NetworkClient {
         NetworkClient::new(self.client.clone(), self.path.as_str(), id)
     }
 }
