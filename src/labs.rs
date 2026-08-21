@@ -66,6 +66,7 @@ pub struct Links {
     pub serial: HashMap<i32, HashMap<i32, String>>,
 }
 
+/// A client to manage labs.
 pub struct LabsClient {
     client: Client,
     path: String,
@@ -80,16 +81,16 @@ impl LabsClient {
     }
 
     /// Creates a new lab.
-    pub async fn add(&self, params: &CreateLabRequest) -> Result<LabClient> {
-        validate_pathname(&params.name)?;
+    pub async fn add(&self, params: AddLabRequest) -> Result<LabClient> {
+        let params = params.path(&self.path);
 
         self.client
-            .post::<(), CreateLabRequest>("labs", params)
+            .post::<(), AddLabRequest>("labs", &params)
             .await?;
 
         Ok(LabClient::new(
             self.client.clone(),
-            &self.path,
+            &params.path,
             &params.name,
         ))
     }
@@ -99,14 +100,14 @@ impl LabsClient {
 pub struct LabPath(String);
 
 impl LabPath {
-    pub fn new(path: &str, name: &str) -> Self {
-        let mut lab = name.to_string();
+    pub fn new(path: impl Into<String>, name: impl Into<String>) -> Self {
+        let mut lab = name.into();
 
         if !lab.ends_with(".unl") {
             lab.push_str(".unl")
         }
 
-        Self(format!("{}/{}", path.trim_end_matches("/"), lab))
+        Self(format!("{}/{}", path.into().trim_end_matches("/"), lab))
     }
 
     pub fn as_str(&self) -> &str {
@@ -136,13 +137,14 @@ impl std::fmt::Display for LabPath {
     }
 }
 
+/// A client to manage a single lab.
 pub struct LabClient {
     client: Client,
     path: LabPath,
 }
 
 impl LabClient {
-    pub(crate) fn new(client: Client, path: &str, name: &str) -> Self {
+    pub(crate) fn new(client: Client, path: impl Into<String>, name: impl Into<String>) -> Self {
         Self {
             client,
             path: LabPath::new(path, name),
@@ -159,12 +161,12 @@ impl LabClient {
 
     /// Updates the lab's details.
     ///
-    /// To change the lab's name, see [`rename`](Self::rename()).
-    pub async fn edit(&self, params: &EditLabRequest) -> Result<()> {
+    /// To change the lab's name, see [`rename`](Self::rename).
+    pub async fn edit(&self, params: EditLabRequest) -> Result<()> {
         // Docs specify that only one parameter can be changed per request, but
         // editing multiple parameters works?
         self.client
-            .put::<(), EditLabRequest>(&format!("labs{}", self.path), params)
+            .put::<(), EditLabRequest>(&format!("labs{}", self.path), &params)
             .await?;
         Ok(())
     }
@@ -172,19 +174,14 @@ impl LabClient {
     /// Renames the lab.
     ///
     /// To update other lab details, see [`edit`](Self::edit).
-    pub async fn rename(self, name: &str) -> Result<LabClient> {
-        validate_pathname(name)?;
+    pub async fn rename(self, name: impl Into<String>) -> Result<LabClient> {
+        let name = name.into();
+        validate_pathname(&name)?;
 
-        #[derive(Debug, Serialize)]
-        struct RenameLabRequest {
-            name: String,
-        }
+        let params = EditLabRequest::new().name(&name);
 
-        let params = &RenameLabRequest {
-            name: name.to_string(),
-        };
         self.client
-            .put::<(), RenameLabRequest>(&format!("labs{}", self.path), params)
+            .put::<(), EditLabRequest>(&format!("labs{}", self.path), &params)
             .await?;
 
         Ok(LabClient::new(
@@ -196,16 +193,10 @@ impl LabClient {
 
     /// Moves the lab to the specified path.
     pub async fn move_to(self, folder_path: &str) -> Result<LabClient> {
-        #[derive(Debug, Serialize)]
-        struct MoveLabRequest {
-            path: String,
-        }
+        let params = EditLabRequest::new().path(folder_path);
 
-        let params = &MoveLabRequest {
-            path: folder_path.to_string(),
-        };
         self.client
-            .put::<(), MoveLabRequest>(&format!("labs{}/move", self.path), params)
+            .put::<(), EditLabRequest>(&format!("labs{}/move", self.path), &params)
             .await?;
 
         Ok(LabClient::new(
@@ -256,20 +247,175 @@ impl LabClient {
             .into_data()
     }
 
+    /// Returns a client to manage nodes.
     pub fn nodes(&self) -> NodesClient {
         NodesClient::new(self.client.clone(), self.path.as_str())
     }
 
+    /// Returns a client to manage a single node.
     pub fn node(&self, id: i32) -> NodeClient {
         NodeClient::new(self.client.clone(), self.path.as_str(), id)
     }
 
+    /// Returns a client to manage networks.
     pub fn networks(&self) -> NetworksClient {
         NetworksClient::new(self.client.clone(), self.path.as_str())
     }
 
+    /// Returns a client to manage a single network.
     pub fn network(&self, id: i32) -> NetworkClient {
         NetworkClient::new(self.client.clone(), self.path.as_str(), id)
+    }
+}
+
+/// Request for adding a lab.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct AddLabRequest {
+    name: String,
+    path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scripttimeout: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<u32>,
+}
+
+impl AddLabRequest {
+    /// Creates a new request for adding a lab.
+    pub fn new(name: impl Into<String>) -> Result<Self> {
+        let name = name.into();
+        validate_pathname(&name)?;
+
+        Ok(Self {
+            name,
+            scripttimeout: Some(600),
+            version: Some(1),
+            ..Default::default()
+        })
+    }
+
+    /// Sets the lab's author name.
+    pub fn author(mut self, author: impl Into<String>) -> Self {
+        self.author = Some(author.into());
+        self
+    }
+
+    /// Sets the lab's usage text.
+    pub fn body(mut self, body: impl Into<String>) -> Self {
+        self.body = Some(body.into());
+        self
+    }
+
+    /// Sets the lab's description.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Sets the lab's version.
+    pub fn version(mut self, version: u32) -> Self {
+        self.version = Some(version);
+        self
+    }
+
+    /// Sets the lab's script timeout.
+    ///
+    /// The script timeout is the value in seconds used for the “Configuration
+    /// Export” and “Boot from exported configs” operations.
+    pub fn scripttimeout(mut self, scripttimeout: u32) -> Self {
+        self.scripttimeout = Some(scripttimeout);
+        self
+    }
+
+    pub(crate) fn path(mut self, path: impl Into<String>) -> Self {
+        self.path = path.into();
+        self
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct EditLabRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scripttimeout: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<u32>,
+}
+
+impl EditLabRequest {
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+
+    /// Sets the lab's author name.
+    pub fn author(mut self, author: impl Into<String>) -> Self {
+        self.author = Some(author.into());
+        self
+    }
+
+    pub fn clear_author(mut self) -> Self {
+        self.author = Some(String::new());
+        self
+    }
+
+    /// Sets the lab's usage text.
+    pub fn body(mut self, body: impl Into<String>) -> Self {
+        self.body = Some(body.into());
+        self
+    }
+
+    pub fn clear_body(mut self) -> Self {
+        self.body = Some(String::new());
+        self
+    }
+
+    /// Sets the lab's description.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    pub fn clear_description(mut self) -> Self {
+        self.description = Some(String::new());
+        self
+    }
+
+    /// Sets the lab's version.
+    pub fn scripttimeout(mut self, scripttimeout: u32) -> Self {
+        self.scripttimeout = Some(scripttimeout);
+        self
+    }
+
+    /// Sets the lab's script timeout.
+    pub fn version(mut self, version: u32) -> Self {
+        self.version = Some(version);
+        self
+    }
+
+    pub(crate) fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub(crate) fn path(mut self, path: impl Into<String>) -> Self {
+        self.path = Some(path.into());
+        self
     }
 }
 
