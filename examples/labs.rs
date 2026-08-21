@@ -2,39 +2,24 @@ mod common;
 
 use eveng::Result;
 use eveng::folders::FolderEntry;
-use eveng::labs::{CreateLabRequest, EditLabRequest};
+use eveng::labs::{AddLabRequest, EditLabRequest};
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let labs = client.folder("/").labs();
+    let folder = client.folder("/");
 
     // Add
-    let lab = labs
-        .add(&CreateLabRequest {
-            name: "Test1".to_string(),
-            path: "/".to_string(),
-            version: 1,
-            scripttimeout: None,
-            author: None,
-            body: None,
-            description: None,
-        })
-        .await?;
+    let req = AddLabRequest::new("Test1")?;
+    let lab = folder.labs().add(req).await?;
 
     // Before
     let resp = lab.get().await?;
     eprintln!("{}", serde_json::to_string_pretty(&resp).unwrap());
 
     // Edit
-    lab.edit(&EditLabRequest {
-        author: None,
-        body: None,
-        description: Some("Test description".to_string()),
-        version: None,
-        scripttimeout: None,
-    })
-    .await?;
+    lab.edit(EditLabRequest::new().description("Test description"))
+        .await?;
 
     // Rename
     let lab = lab.rename("Test2").await?;

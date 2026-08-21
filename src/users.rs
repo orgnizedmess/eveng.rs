@@ -231,6 +231,18 @@ impl EditUserRequest {
         self.name = Some(name.into());
         self
     }
+
+    /// Clears the user's current full name.
+    pub fn clear_name(mut self) -> Self {
+        self.name = Some(String::new());
+        self
+    }
+
+    /// Clears the user's current email address.
+    pub fn clear_email(mut self) -> Self {
+        self.email = Some(String::new());
+        self
+    }
 }
 
 #[cfg(test)]
