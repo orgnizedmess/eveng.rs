@@ -1,5 +1,6 @@
 use crate::folders::{FolderClient, FoldersClient};
 use crate::system::SystemClient;
+use crate::templates::TemplateClient;
 use crate::users::{UserClient, UsersClient};
 use crate::utils::number_from_string;
 use crate::{Error, Result};
@@ -148,6 +149,10 @@ impl Client {
     /// Returns a client to manage a single user.
     pub fn user(&self, username: &str) -> UserClient {
         UserClient::new(self.clone(), username)
+    }
+
+    pub fn node_template(&self, name: impl Into<String>) -> TemplateClient {
+        TemplateClient::new(self.clone(), name)
     }
 
     async fn request<T, B>(

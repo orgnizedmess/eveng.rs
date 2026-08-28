@@ -19,6 +19,7 @@ pub mod labs;
 pub mod networks;
 pub mod nodes;
 pub mod system;
+pub mod templates;
 pub mod users;
 
 pub use client::Client;

@@ -1,6 +1,6 @@
 //! Client and models for system-level information about the EVE-NG instance.
 
-use crate::utils::WireMap;
+use crate::utils::{WireMap, map_or_seq};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -57,14 +57,6 @@ pub struct AuthStatus {
     pub lab: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NodeTemplate {
-    pub description: String,
-    pub options: HashMap<String, Value>,
-    #[serde(rename = "type")]
-    pub node_type: String,
-}
-
 /// A client for system-level information.
 pub struct SystemClient {
     client: Client,
@@ -83,24 +75,6 @@ impl SystemClient {
     /// Gets the currently authenticated user's details.
     pub async fn auth_status(&self) -> Result<AuthStatus> {
         self.client.get("auth").await?.into_data()
-    }
-
-    /// Lists available node templates.
-    pub async fn node_templates(&self) -> Result<HashMap<String, String>> {
-        Ok(self
-            .client
-            .get::<WireMap<String, String>>("list/templates/")
-            .await?
-            .into_data()?
-            .0)
-    }
-
-    /// Gets a node template's details.
-    pub async fn node_template(&self, template: &str) -> Result<NodeTemplate> {
-        self.client
-            .get(&format!("list/templates/{}", template))
-            .await?
-            .into_data()
     }
 
     /// Lists available network types.
