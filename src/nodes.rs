@@ -9,7 +9,9 @@ use crate::{Client, Error, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::collections::HashMap;
+use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Node {
@@ -27,7 +29,7 @@ pub struct Node {
     #[serde(rename = "type")]
     pub node_type: NodeType,
 
-    pub status: u32,
+    pub status: NodeStatus,
 
     pub template: String,
 
@@ -132,6 +134,15 @@ impl std::fmt::Display for NodeType {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum NodeStatus {
+    Stopped = 0,
+    Starting = 1,
+    Running = 2,
+    Stopping = 3,
+}
+
 pub struct NodesClient {
     client: Client,
     path: LabPath,
@@ -225,11 +236,20 @@ impl NodeClient {
             .into_data()
     }
 
+    async fn status(&self) -> Result<NodeStatus> {
+        Ok(self.get().await?.status)
+    }
+
     /// Updates the node's details.
     pub async fn edit<T: TypedNode>(&self, params: EditNodeRequest<T>) -> Result<()> {
         self.client
             .put::<(), EditNodeRequest<T>>(&format!("labs{}/nodes/{}", self.path, self.id), &params)
             .await?;
+
+        if params.status != NodeStatus::Stopped {
+            self.start().await?
+        }
+
         Ok(())
     }
 
@@ -241,16 +261,26 @@ impl NodeClient {
         Ok(())
     }
 
-    /// Starts the node.
+    /// Starts the node if not already started.
     pub async fn start(&self) -> Result<()> {
+        let status = self.status().await?;
+        if matches!(status, NodeStatus::Running | NodeStatus::Starting) {
+            return Ok(());
+        }
+
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/start", self.path, self.id))
             .await?;
         Ok(())
     }
 
-    /// Stops the node.
+    /// Stops the node if not already stopped.
     pub async fn stop(&self) -> Result<()> {
+        let status = self.status().await?;
+        if matches!(status, NodeStatus::Stopped | NodeStatus::Stopping) {
+            return Ok(());
+        }
+
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/stop", self.path, self.id))
             .await?;
@@ -589,6 +619,8 @@ pub struct EditNodeRequest<T> {
     name: String,
     #[serde(rename = "type")]
     node_type: NodeType,
+    #[serde(skip_serializing)]
+    status: NodeStatus,
     template: String,
 
     #[serde(flatten)]
