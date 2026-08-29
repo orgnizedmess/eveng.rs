@@ -1,5 +1,6 @@
 //! Clients and models for managing labs within a folder.
 
+use crate::folders::FolderPath;
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::{NodeClient, NodesClient};
 use crate::utils::validate_pathname;
@@ -7,6 +8,7 @@ use crate::utils::{empty_string_is_none, map_or_seq, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Lab {
@@ -69,20 +71,17 @@ pub struct Links {
 /// A client to manage labs.
 pub struct LabsClient {
     client: Client,
-    path: String,
+    path: FolderPath,
 }
 
 impl LabsClient {
-    pub(crate) fn new(client: Client, path: &str) -> Self {
-        Self {
-            client,
-            path: path.to_string(),
-        }
+    pub(crate) fn new(client: Client, path: FolderPath) -> Self {
+        Self { client, path }
     }
 
     /// Creates a new lab.
     pub async fn add(&self, params: AddLabRequest) -> Result<LabClient> {
-        let params = params.path(&self.path);
+        let params = params.path(self.path.clone());
 
         self.client
             .post::<(), AddLabRequest>("labs", &params)
@@ -90,36 +89,46 @@ impl LabsClient {
 
         Ok(LabClient::new(
             self.client.clone(),
-            &params.path,
+            FolderPath::new(&params.path),
             &params.name,
         ))
     }
 }
 
-#[derive(Debug)]
-pub struct LabPath(String);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LabPath(Arc<str>);
 
 impl LabPath {
-    pub fn new(path: impl Into<String>, name: impl Into<String>) -> Self {
+    pub fn new(path: FolderPath, name: impl Into<String>) -> Self {
         let mut lab = name.into();
 
         if !lab.ends_with(".unl") {
             lab.push_str(".unl")
         }
 
-        Self(format!("{}/{}", path.into().trim_end_matches("/"), lab))
+        Self(Arc::from(format!(
+            "{}/{}",
+            path.as_str().trim_end_matches("/"),
+            lab
+        )))
+    }
+
+    pub(crate) fn from_str(path: &str) -> Self {
+        Self(Arc::from(path))
     }
 
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
-    pub fn folder(&self) -> &str {
-        self.0
-            .rsplit_once("/")
-            .map(|(p, _)| p)
-            .filter(|p| !p.is_empty())
-            .unwrap_or("/")
+    pub fn folder(&self) -> FolderPath {
+        FolderPath::new(
+            self.0
+                .rsplit_once("/")
+                .map(|(p, _)| p)
+                .filter(|p| !p.is_empty())
+                .unwrap_or("/"),
+        )
     }
 
     pub fn lab(&self) -> &str {
@@ -144,11 +153,19 @@ pub struct LabClient {
 }
 
 impl LabClient {
-    pub(crate) fn new(client: Client, path: impl Into<String>, name: impl Into<String>) -> Self {
+    pub(crate) fn new(client: Client, path: FolderPath, name: impl Into<String>) -> Self {
         Self {
             client,
             path: LabPath::new(path, name),
         }
+    }
+
+    pub(crate) fn from_path(client: Client, path: LabPath) -> Self {
+        Self { client, path }
+    }
+
+    fn labs(&self) -> LabsClient {
+        LabsClient::new(self.client.clone(), self.path.folder())
     }
 
     /// Gets the lab's details.
@@ -174,7 +191,7 @@ impl LabClient {
     /// Renames the lab.
     ///
     /// To update other lab details, see [`edit`](Self::edit).
-    pub async fn rename(self, name: impl Into<String>) -> Result<LabClient> {
+    pub async fn rename(self, name: impl Into<String>) -> Result<Self> {
         let name = name.into();
         validate_pathname(&name)?;
 
@@ -184,24 +201,20 @@ impl LabClient {
             .put::<(), EditLabRequest>(&format!("labs{}", self.path), &params)
             .await?;
 
-        Ok(LabClient::new(
-            self.client.clone(),
-            self.path.folder(),
-            name,
-        ))
+        Ok(Self::new(self.client.clone(), self.path.folder(), name))
     }
 
     /// Moves the lab to the specified path.
-    pub async fn move_to(self, folder_path: &str) -> Result<LabClient> {
+    pub async fn move_to(self, folder_path: &str) -> Result<Self> {
         let params = EditLabRequest::new().path(folder_path);
 
         self.client
             .put::<(), EditLabRequest>(&format!("labs{}/move", self.path), &params)
             .await?;
 
-        Ok(LabClient::new(
+        Ok(Self::new(
             self.client.clone(),
-            folder_path,
+            FolderPath::new(folder_path),
             self.path.lab_name(),
         ))
     }
@@ -249,22 +262,22 @@ impl LabClient {
 
     /// Returns a client to manage nodes.
     pub fn nodes(&self) -> NodesClient {
-        NodesClient::new(self.client.clone(), self.path.as_str())
+        NodesClient::new(self.client.clone(), self.path.clone())
     }
 
     /// Returns a client to manage a single node.
     pub fn node(&self, id: u32) -> NodeClient {
-        NodeClient::new(self.client.clone(), self.path.as_str(), id)
+        NodeClient::new(self.client.clone(), self.path.clone(), id)
     }
 
     /// Returns a client to manage networks.
     pub fn networks(&self) -> NetworksClient {
-        NetworksClient::new(self.client.clone(), self.path.as_str())
+        NetworksClient::new(self.client.clone(), self.path.clone())
     }
 
     /// Returns a client to manage a single network.
     pub fn network(&self, id: u32) -> NetworkClient {
-        NetworkClient::new(self.client.clone(), self.path.as_str(), id)
+        NetworkClient::new(self.client.clone(), self.path.clone(), id)
     }
 }
 
@@ -332,8 +345,8 @@ impl AddLabRequest {
         self
     }
 
-    pub(crate) fn path(mut self, path: impl Into<String>) -> Self {
-        self.path = path.into();
+    pub(crate) fn path(mut self, path: FolderPath) -> Self {
+        self.path = path.as_str().into();
         self
     }
 }
@@ -422,33 +435,42 @@ impl EditLabRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_folder() -> FolderPath {
+        FolderPath::new("/Test Folder")
+    }
+
+    fn new_folder() -> FolderPath {
+        FolderPath::new("/New Folder")
+    }
+
     #[test]
     fn test_lab_path() {
-        let path = LabPath::new("/Test Folder", "Test");
+        let path = LabPath::new(test_folder(), "Test");
 
         assert_eq!(path.as_str(), "/Test Folder/Test.unl");
-        assert_eq!(path.folder(), "/Test Folder");
+        assert_eq!(path.folder().as_str(), "/Test Folder");
         assert_eq!(path.lab_name(), "Test");
     }
 
     #[test]
     fn test_folder_rename() {
-        let path = LabPath::new("/Test Folder", "Test");
+        let path = LabPath::new(test_folder(), "Test");
         let new_path = LabPath::new(path.folder(), "Test1");
 
         assert_eq!(new_path.as_str(), "/Test Folder/Test1.unl");
-        assert_eq!(new_path.folder(), "/Test Folder");
+        assert_eq!(new_path.folder().as_str(), "/Test Folder");
         assert_eq!(new_path.lab(), "Test1.unl");
         assert_eq!(new_path.lab_name(), "Test1");
     }
 
     #[test]
     fn test_folder_move() {
-        let path = LabPath::new("/Test Folder", "Test");
-        let new_path = LabPath::new("/New Folder", path.lab());
+        let path = LabPath::new(test_folder(), "Test");
+        let new_path = LabPath::new(new_folder(), path.lab());
 
         assert_eq!(new_path.as_str(), "/New Folder/Test.unl");
-        assert_eq!(new_path.folder(), "/New Folder");
+        assert_eq!(new_path.folder().as_str(), "/New Folder");
         assert_eq!(new_path.lab(), "Test.unl");
     }
 }

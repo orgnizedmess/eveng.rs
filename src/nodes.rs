@@ -2,6 +2,7 @@
 
 use crate::interfaces::InterfaceType;
 use crate::interfaces::{InterfaceClient, InterfacesClient};
+use crate::labs::{LabClient, LabPath};
 use crate::templates::NodeTemplate;
 use crate::utils::{WireMap, empty_string_is_none, number_from_string};
 use crate::{Client, Error, Result};
@@ -133,15 +134,12 @@ impl std::fmt::Display for NodeType {
 
 pub struct NodesClient {
     client: Client,
-    path: String,
+    path: LabPath,
 }
 
 impl NodesClient {
-    pub(crate) fn new(client: Client, path: &str) -> Self {
-        Self {
-            client,
-            path: path.to_string(),
-        }
+    pub(crate) fn new(client: Client, path: LabPath) -> Self {
+        Self { client, path }
     }
 
     /// Lists all nodes.
@@ -166,7 +164,11 @@ impl NodesClient {
             .await?
             .into_data()?;
 
-        Ok(NodeClient::new(self.client.clone(), &self.path, resp.id))
+        Ok(NodeClient::new(
+            self.client.clone(),
+            self.path.clone(),
+            resp.id,
+        ))
     }
 
     /// Starts all nodes.
@@ -206,17 +208,13 @@ impl NodesClient {
 
 pub struct NodeClient {
     client: Client,
-    path: String,
+    path: LabPath,
     id: u32,
 }
 
 impl NodeClient {
-    pub(crate) fn new(client: Client, path: &str, id: u32) -> Self {
-        Self {
-            client,
-            path: path.to_string(),
-            id,
-        }
+    pub(crate) fn new(client: Client, path: LabPath, id: u32) -> Self {
+        Self { client, path, id }
     }
 
     /// Gets the node's details.
@@ -280,13 +278,13 @@ impl NodeClient {
     }
 
     pub fn interfaces(&self) -> InterfacesClient {
-        InterfacesClient::new(self.client.clone(), &self.path, self.id)
+        InterfacesClient::new(self.client.clone(), self.path.clone(), self.id)
     }
 
     pub fn ethernet(&self, id: u32) -> InterfaceClient {
         InterfaceClient::new(
             self.client.clone(),
-            &self.path,
+            self.path.clone(),
             self.id,
             id,
             InterfaceType::Ethernet,
@@ -296,7 +294,7 @@ impl NodeClient {
     pub fn serial(&self, id: u32) -> InterfaceClient {
         InterfaceClient::new(
             self.client.clone(),
-            &self.path,
+            self.path.clone(),
             self.id,
             id,
             InterfaceType::Serial,

@@ -1,3 +1,4 @@
+use crate::labs::LabPath;
 use crate::networks::{AddNetworkRequest, EditNetworkRequest};
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::NodeClient;
@@ -43,15 +44,15 @@ pub struct Interfaces {
 
 pub struct InterfacesClient {
     client: Client,
-    path: String,
+    path: LabPath,
     node_id: u32,
 }
 
 impl InterfacesClient {
-    pub(crate) fn new(client: Client, path: impl Into<String>, node_id: u32) -> Self {
+    pub(crate) fn new(client: Client, path: LabPath, node_id: u32) -> Self {
         Self {
             client,
-            path: path.into(),
+            path,
             node_id,
         }
     }
@@ -75,7 +76,7 @@ pub enum InterfaceType {
 
 pub struct InterfaceClient {
     client: Client,
-    path: String,
+    path: LabPath,
     node_id: u32,
     id: u32,
     iface_type: InterfaceType,
@@ -84,14 +85,14 @@ pub struct InterfaceClient {
 impl InterfaceClient {
     pub(crate) fn new(
         client: Client,
-        path: impl Into<String>,
+        path: LabPath,
         node_id: u32,
         id: u32,
         iface_type: InterfaceType,
     ) -> Self {
         Self {
             client,
-            path: path.into(),
+            path,
             node_id,
             id,
             iface_type,
@@ -101,11 +102,12 @@ impl InterfaceClient {
     pub async fn connect_to_node(&self, dest: &InterfaceClient) -> Result<()> {
         match (&self.iface_type, &dest.iface_type) {
             (InterfaceType::Ethernet, InterfaceType::Ethernet) => {
-                let src_node = NodeClient::new(self.client.clone(), &self.path, self.node_id)
-                    .get()
-                    .await?;
+                let src_node =
+                    NodeClient::new(self.client.clone(), self.path.clone(), self.node_id)
+                        .get()
+                        .await?;
 
-                let bridge = NetworksClient::new(self.client.clone(), &self.path)
+                let bridge = NetworksClient::new(self.client.clone(), self.path.clone())
                     .add(
                         AddNetworkRequest::new("bridge")
                             .name(format!("Net-{}iface{}", src_node.name, self.id)),
@@ -129,7 +131,7 @@ impl InterfaceClient {
         if !matches!(self.iface_type, InterfaceType::Ethernet) {
             return Err(Error::MissingData);
         }
-        self.connect(dest.id.to_string()).await
+        self.connect(dest.id().to_string()).await
     }
 
     async fn connect(&self, dest_id: String) -> Result<()> {
@@ -147,7 +149,7 @@ impl InterfaceClient {
         match self.iface_type {
             InterfaceType::Ethernet => {
                 let network_id =
-                    InterfacesClient::new(self.client.clone(), &self.path, self.node_id)
+                    InterfacesClient::new(self.client.clone(), self.path.clone(), self.node_id)
                         .list()
                         .await?
                         .ethernet
@@ -155,7 +157,8 @@ impl InterfaceClient {
                         .ok_or(Error::Invalid("Interface not found".to_string()))?
                         .network_id;
 
-                let network = NetworkClient::new(self.client.clone(), &self.path, network_id);
+                let network =
+                    NetworkClient::new(self.client.clone(), self.path.clone(), network_id);
                 if network.get().await?.network_type == "bridge" {
                     network.delete().await?;
                     Ok(())

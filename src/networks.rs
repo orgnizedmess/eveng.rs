@@ -1,5 +1,6 @@
 //! Clients and models for managing networks within a lab.
 
+use crate::labs::LabPath;
 use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
@@ -28,15 +29,12 @@ pub struct Network {
 
 pub struct NetworksClient {
     client: Client,
-    path: String,
+    path: LabPath,
 }
 
 impl NetworksClient {
-    pub(crate) fn new(client: Client, path: &str) -> Self {
-        Self {
-            client,
-            path: path.to_string(),
-        }
+    pub(crate) fn new(client: Client, path: LabPath) -> Self {
+        Self { client, path }
     }
 
     /// Lists all networks.
@@ -61,23 +59,27 @@ impl NetworksClient {
             .post(&format!("labs{}/networks", self.path), &params)
             .await?
             .into_data()?;
-        Ok(NetworkClient::new(self.client.clone(), &self.path, resp.id))
+        Ok(NetworkClient::new(
+            self.client.clone(),
+            self.path.clone(),
+            resp.id,
+        ))
     }
 }
 
 pub struct NetworkClient {
-    pub(crate) client: Client,
-    pub(crate) path: String,
-    pub(crate) id: u32,
+    client: Client,
+    path: LabPath,
+    id: u32,
 }
 
 impl NetworkClient {
-    pub(crate) fn new(client: Client, path: impl Into<String>, id: u32) -> Self {
-        Self {
-            client,
-            path: path.into(),
-            id,
-        }
+    pub(crate) fn new(client: Client, path: LabPath, id: u32) -> Self {
+        Self { client, path, id }
+    }
+
+    pub fn id(&self) -> &u32 {
+        &self.id
     }
 
     /// Gets the network's details.

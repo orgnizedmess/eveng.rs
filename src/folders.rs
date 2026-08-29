@@ -4,6 +4,7 @@ use crate::labs::{LabClient, LabsClient};
 use crate::utils::validate_pathname;
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// A client for managing folders.
 pub struct FoldersClient {
@@ -54,8 +55,8 @@ pub struct LabEntry {
     pub umtime: u64,
 }
 
-#[derive(Debug)]
-pub struct FolderPath(String);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FolderPath(Arc<str>);
 
 impl std::fmt::Display for FolderPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -65,11 +66,15 @@ impl std::fmt::Display for FolderPath {
 
 impl FolderPath {
     pub fn new(path: &str) -> Self {
-        Self(path.to_string())
+        Self(Arc::from(path))
     }
 
     pub fn from_parts(parent: &str, leaf: &str) -> Self {
-        Self(format!("{}/{}", parent.trim_end_matches("/"), leaf))
+        Self(Arc::from(format!(
+            "{}/{}",
+            parent.trim_end_matches("/"),
+            leaf
+        )))
     }
 
     pub fn as_str(&self) -> &str {
@@ -112,7 +117,8 @@ impl FolderClient {
     }
 
     // Renames the folder.
-    pub async fn rename(self, name: &str) -> Result<FolderClient> {
+    pub async fn rename(self, name: impl AsRef<str>) -> Result<FolderClient> {
+        let name = name.as_ref();
         validate_pathname(name)?;
 
         let new_path = FolderPath::from_parts(self.path.parent(), name);
@@ -125,8 +131,8 @@ impl FolderClient {
     }
 
     /// Moves the folder to the specified path.
-    pub async fn move_to(self, folder_path: &str) -> Result<FolderClient> {
-        let new_path = FolderPath::from_parts(folder_path, self.path.leaf());
+    pub async fn move_to(self, folder_path: impl AsRef<str>) -> Result<FolderClient> {
+        let new_path = FolderPath::from_parts(folder_path.as_ref(), self.path.leaf());
         self.edit(new_path.as_str()).await?;
 
         Ok(FolderClient {
@@ -136,17 +142,10 @@ impl FolderClient {
     }
 
     async fn edit(&self, path: &str) -> Result<()> {
-        #[derive(Debug, Serialize)]
-        struct EditFolderRequest {
-            path: String,
-        }
-
-        let params = &EditFolderRequest {
-            path: path.to_string(),
-        };
+        let params = serde_json::json!({path: path.to_string()});
 
         self.client
-            .put::<(), EditFolderRequest>(&format!("folders{}", self.path), params)
+            .put::<(), serde_json::Value>(&format!("folders{}", self.path), &params)
             .await?;
 
         Ok(())
@@ -162,12 +161,12 @@ impl FolderClient {
 
     /// Returns a client for managing labs.
     pub fn labs(&self) -> LabsClient {
-        LabsClient::new(self.client.clone(), self.path.as_str())
+        LabsClient::new(self.client.clone(), self.path.clone())
     }
 
     /// Returns a client for managing a single lab.
     pub fn lab(&self, name: &str) -> LabClient {
-        LabClient::new(self.client.clone(), self.path.as_str(), name)
+        LabClient::new(self.client.clone(), self.path.clone(), name)
     }
 }
 
@@ -176,7 +175,7 @@ mod tests {
     use super::*;
     #[test]
     fn folder_path() {
-        let path = FolderPath("/New Folder".to_string());
+        let path = FolderPath::new("/New Folder");
 
         assert_eq!(path.parent(), "/");
         assert_eq!(path.leaf(), "New Folder");
