@@ -20,21 +20,9 @@ impl NodeTemplate {
         let options = &self.options;
 
         options
-            .into_iter()
+            .iter()
             .map(|(k, v)| (k.clone(), v.value.clone()))
             .collect()
-    }
-}
-
-impl PartialEq<NodeTemplate> for NodeType {
-    fn eq(&self, other: &NodeTemplate) -> bool {
-        *self == other.node_type
-    }
-}
-
-impl PartialEq<NodeType> for NodeTemplate {
-    fn eq(&self, other: &NodeType) -> bool {
-        self.node_type == *other
     }
 }
 

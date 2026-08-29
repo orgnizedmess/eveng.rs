@@ -98,7 +98,7 @@ pub struct Node {
     pub serial: Option<u32>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeType {
     Qemu,
@@ -106,18 +106,6 @@ pub enum NodeType {
     Docker,
     Dynamips,
     Vpcs,
-}
-
-impl PartialEq<Node> for NodeType {
-    fn eq(&self, other: &Node) -> bool {
-        *self == other.node_type
-    }
-}
-
-impl PartialEq<NodeType> for Node {
-    fn eq(&self, other: &NodeType) -> bool {
-        self.node_type == *other
-    }
 }
 
 impl std::fmt::Display for NodeType {
@@ -465,7 +453,8 @@ pub struct AddNodeRequest<T> {
     node_type: NodeType,
     template: String,
     top: u32,
-    config: String,
+    #[serde(deserialize_with = "number_from_string")]
+    config: u32,
     delay: u32,
     icon: String,
     name: String,
@@ -509,8 +498,8 @@ impl<T: TypedNode> AddNodeRequest<T> {
         self
     }
 
-    pub fn config(mut self, config: impl Into<String>) -> Self {
-        self.config = config.into();
+    pub fn config(mut self, config: u32) -> Self {
+        self.config = config;
         self
     }
 
@@ -699,7 +688,7 @@ impl<T: TypedNode> EditNodeRequest<T> {
     }
 
     pub fn config(mut self, config: u32) -> Self {
-        self.config = config.into();
+        self.config = config;
         self
     }
 

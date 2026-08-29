@@ -1,13 +1,11 @@
 //! Client and models for system-level information about the EVE-NG instance.
 
-use crate::utils::{WireMap, map_or_seq};
+use crate::utils::WireMap;
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct SystemStatus {
     /// cached memory (percentage)
     pub cached: u8,
@@ -40,8 +38,7 @@ pub struct SystemStatus {
     pub vpcs: u32,
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AuthStatus {
     pub email: String,
     /// Current folder
