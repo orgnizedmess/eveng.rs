@@ -2,10 +2,12 @@
 
 use crate::folders::FolderPath;
 use crate::networks::{NetworkClient, NetworksClient};
+use crate::nodes::NodeStatus;
 use crate::nodes::{NodeClient, NodesClient};
+use crate::system::SystemClient;
 use crate::utils::validate_pathname;
 use crate::utils::{empty_string_is_none, map_or_seq, number_from_string};
-use crate::{Client, Result};
+use crate::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -92,6 +94,20 @@ impl LabsClient {
             FolderPath::new(&params.path),
             &params.name,
         ))
+    }
+
+    /// Returns a client for the currently open lab.
+    pub async fn current(&self) -> Result<Option<LabClient>> {
+        let Some(current_lab) = SystemClient::new(self.client.clone())
+            .auth_status()
+            .await?
+            .lab
+        else {
+            return Ok(None);
+        };
+
+        let path = LabPath::from_str(&current_lab);
+        Ok(Some(LabClient::from_path(self.client.clone(), path)))
     }
 }
 
@@ -258,6 +274,49 @@ impl LabClient {
             .get(&format!("labs{}/links", self.path))
             .await?
             .into_data()
+    }
+
+    /// Opens the lab if it isn't already open.
+    ///
+    /// If another lab is open, then it attempts to close that lab before
+    /// opening this lab.
+    pub(crate) async fn open(&self) -> Result<()> {
+        match self.labs().current().await? {
+            Some(lab) if lab.path == self.path => return Ok(()),
+            Some(lab) => lab.close_inner().await?,
+            None => {}
+        }
+
+        self.topology().await?;
+        Ok(())
+    }
+
+    /// Closes the lab if it isn't already closed.
+    pub async fn close(&self) -> Result<()> {
+        match self.labs().current().await? {
+            Some(lab) if lab.path == self.path => {}
+            _ => return Ok(()),
+        }
+
+        let has_running_nodes = self
+            .nodes()
+            .list()
+            .await?
+            .iter()
+            .any(|(_, v)| v.status != NodeStatus::Stopped);
+
+        if has_running_nodes {
+            return Err(Error::Invalid(
+                "There are running nodes, power them off before closing the lab.".into(),
+            ));
+        }
+
+        self.close_inner().await
+    }
+
+    async fn close_inner(&self) -> Result<()> {
+        self.client.delete::<()>("labs/close").await?;
+        Ok(())
     }
 
     /// Returns a client to manage nodes.

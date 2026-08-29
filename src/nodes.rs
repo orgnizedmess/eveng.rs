@@ -153,6 +153,10 @@ impl NodesClient {
         Self { client, path }
     }
 
+    fn lab(&self) -> LabClient {
+        LabClient::from_path(self.client.clone(), self.path.clone())
+    }
+
     /// Lists all nodes.
     pub async fn list(&self) -> Result<HashMap<u32, Node>> {
         Ok(self
@@ -164,6 +168,8 @@ impl NodesClient {
     }
 
     pub async fn add<T: TypedNode>(&self, params: AddNodeRequest<T>) -> Result<NodeClient> {
+        self.lab().open().await?;
+
         #[derive(Deserialize)]
         struct CreateNodeResponse {
             id: u32,
@@ -184,22 +190,32 @@ impl NodesClient {
 
     /// Starts all nodes.
     pub async fn start(&self) -> Result<()> {
+        self.lab().open().await?;
+
         self.client
             .get::<()>(&format!("labs{}/nodes/start", self.path))
             .await?;
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 
     /// Stops all nodes.
     pub async fn stop(&self) -> Result<()> {
+        self.lab().open().await?;
+
         self.client
             .get::<()>(&format!("labs{}/nodes/stop", self.path))
             .await?;
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 
     /// Wipes the config from all nodes.
     pub async fn wipe(&self) -> Result<()> {
+        self.lab().open().await?;
+
         self.client
             .get::<()>(&format!("labs{}/nodes/wipe", self.path))
             .await?;
@@ -210,6 +226,8 @@ impl NodesClient {
     ///
     /// TODO: only some might be supported, document that after checking
     pub async fn export(&self) -> Result<()> {
+        self.lab().open().await?;
+
         self.client
             .get::<()>(&format!("labs{}/nodes/export", self.path))
             .await?;
@@ -228,6 +246,10 @@ impl NodeClient {
         Self { client, path, id }
     }
 
+    fn lab(&self) -> LabClient {
+        LabClient::from_path(self.client.clone(), self.path.clone())
+    }
+
     /// Gets the node's details.
     pub async fn get(&self) -> Result<Node> {
         self.client
@@ -241,7 +263,13 @@ impl NodeClient {
     }
 
     /// Updates the node's details.
+    ///
+    /// If the node is running, it is stopped before editing and started again
+    /// once the edits have been made.
     pub async fn edit<T: TypedNode>(&self, params: EditNodeRequest<T>) -> Result<()> {
+        self.lab().open().await?;
+        self.stop().await?;
+
         self.client
             .put::<(), EditNodeRequest<T>>(&format!("labs{}/nodes/{}", self.path, self.id), &params)
             .await?;
@@ -254,15 +282,23 @@ impl NodeClient {
     }
 
     /// Deletes the node.
+    ///
+    /// If the node is currently running, it stops the node before deleting.
     pub async fn delete(self) -> Result<()> {
+        self.lab().open().await?;
+        self.stop().await?;
+
         self.client
             .delete::<()>(&format!("labs{}/nodes/{}", self.path, self.id))
             .await?;
+
         Ok(())
     }
 
     /// Starts the node if not already started.
     pub async fn start(&self) -> Result<()> {
+        self.lab().open().await?;
+
         let status = self.status().await?;
         if matches!(status, NodeStatus::Running | NodeStatus::Starting) {
             return Ok(());
@@ -271,11 +307,15 @@ impl NodeClient {
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/start", self.path, self.id))
             .await?;
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 
     /// Stops the node if not already stopped.
     pub async fn stop(&self) -> Result<()> {
+        self.lab().open().await?;
+
         let status = self.status().await?;
         if matches!(status, NodeStatus::Stopped | NodeStatus::Stopping) {
             return Ok(());
@@ -284,6 +324,8 @@ impl NodeClient {
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/stop", self.path, self.id))
             .await?;
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 
@@ -291,6 +333,8 @@ impl NodeClient {
     ///
     /// TODO: Explain what wipe does
     pub async fn wipe(&self) -> Result<()> {
+        self.lab().open().await?;
+
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/wipe", self.path, self.id))
             .await?;
@@ -301,6 +345,8 @@ impl NodeClient {
     ///
     /// TODO: Explain what export does
     pub async fn export(&self) -> Result<()> {
+        self.lab().open().await?;
+
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/export", self.path, self.id))
             .await?;
