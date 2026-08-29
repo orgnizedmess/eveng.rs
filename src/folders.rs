@@ -1,8 +1,8 @@
 //! Clients and models for managing folders on the EVE-NG instance.
 
 use crate::labs::{LabClient, LabsClient};
-use crate::utils::validate_pathname;
-use crate::{Client, Result};
+use crate::utils::validate_name;
+use crate::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ impl FoldersClient {
 
     /// Creates a new folder.
     pub async fn add(&self, params: &FolderEntry) -> Result<FolderClient> {
-        validate_pathname(&params.name)?;
+        validate_folder_name(&params.name)?;
 
         self.client
             .post::<(), FolderEntry>("folders", params)
@@ -119,7 +119,7 @@ impl FolderClient {
     // Renames the folder.
     pub async fn rename(self, name: impl AsRef<str>) -> Result<FolderClient> {
         let name = name.as_ref();
-        validate_pathname(name)?;
+        validate_folder_name(name)?;
 
         let new_path = FolderPath::from_parts(self.path.parent(), name);
         self.edit(new_path.as_str()).await?;
@@ -170,6 +170,17 @@ impl FolderClient {
     }
 }
 
+/// Validates the specified folder name.
+fn validate_folder_name(name: &str) -> crate::Result<()> {
+    if !validate_name(name, &['_', '-', ' ']) {
+        return Err(Error::Folder(format!(
+            "Invalid folder name '{}', must contain [A-Za-z0-9_- ] chars only",
+            name
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,5 +209,14 @@ mod tests {
         assert_eq!(new_path.as_str(), "/Test Folder/New Folder");
         assert_eq!(new_path.parent(), "/Test Folder");
         assert_eq!(new_path.leaf(), "New Folder");
+    }
+
+    #[test]
+    fn validate_foldername() {
+        let result = validate_folder_name("Test Folder");
+        assert!(result.is_ok());
+
+        let result = validate_folder_name("New+Folder");
+        assert!(matches!(result, Err(Error::Folder(..))));
     }
 }

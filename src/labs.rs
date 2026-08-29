@@ -5,7 +5,7 @@ use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::NodeStatus;
 use crate::nodes::{NodeClient, NodesClient};
 use crate::system::SystemClient;
-use crate::utils::validate_pathname;
+use crate::utils::validate_name;
 use crate::utils::{empty_string_is_none, map_or_seq, number_from_string};
 use crate::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
@@ -209,7 +209,7 @@ impl LabClient {
     /// To update other lab details, see [`edit`](Self::edit).
     pub async fn rename(self, name: impl Into<String>) -> Result<Self> {
         let name = name.into();
-        validate_pathname(&name)?;
+        validate_lab_name(&name)?;
 
         let params = EditLabRequest::new().name(&name);
 
@@ -306,9 +306,10 @@ impl LabClient {
             .any(|(_, v)| v.status != NodeStatus::Stopped);
 
         if has_running_nodes {
-            return Err(Error::Invalid(
-                "There are running nodes, power them off before closing the lab.".into(),
-            ));
+            return Err(Error::Lab(format!(
+                "Lab '{}' cannot be closed as it has running nodes. Power them off before closing.",
+                self.path
+            )));
         }
 
         self.close_inner().await
@@ -361,7 +362,7 @@ impl AddLabRequest {
     /// Creates a new request for adding a lab.
     pub fn new(name: impl Into<String>) -> Result<Self> {
         let name = name.into();
-        validate_pathname(&name)?;
+        validate_lab_name(&name)?;
 
         Ok(Self {
             name,
@@ -491,6 +492,17 @@ impl EditLabRequest {
     }
 }
 
+/// Validates the specified lab name.
+fn validate_lab_name(name: &str) -> crate::Result<()> {
+    if !validate_name(name, &['_', '-', ' ']) {
+        return Err(Error::Lab(format!(
+            "Invalid username '{}', must contain [A-Za-z0-9_- ] chars only",
+            name
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -504,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lab_path() {
+    fn lab_path() {
         let path = LabPath::new(test_folder(), "Test");
 
         assert_eq!(path.as_str(), "/Test Folder/Test.unl");
@@ -513,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    fn test_folder_rename() {
+    fn lab_rename() {
         let path = LabPath::new(test_folder(), "Test");
         let new_path = LabPath::new(path.folder(), "Test1");
 
@@ -524,12 +536,21 @@ mod tests {
     }
 
     #[test]
-    fn test_folder_move() {
+    fn lab_move() {
         let path = LabPath::new(test_folder(), "Test");
         let new_path = LabPath::new(new_folder(), path.lab());
 
         assert_eq!(new_path.as_str(), "/New Folder/Test.unl");
         assert_eq!(new_path.folder().as_str(), "/New Folder");
         assert_eq!(new_path.lab(), "Test.unl");
+    }
+
+    #[test]
+    fn validate_labname() {
+        let result = validate_lab_name("Test");
+        assert!(result.is_ok());
+
+        let result = validate_lab_name("Test%");
+        assert!(matches!(result, Err(Error::Lab(..))));
     }
 }

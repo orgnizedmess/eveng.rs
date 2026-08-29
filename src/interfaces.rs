@@ -123,13 +123,17 @@ impl InterfaceClient {
                 let serial_id = format!("{}:{}", dest.node_id, dest.id);
                 self.connect(serial_id).await
             }
-            _ => Err(Error::Invalid("Mismatched interface types".to_string())),
+            _ => Err(Error::Interface(
+                "Ethernet and serial interfaces cannot be connected to each other.".to_string(),
+            )),
         }
     }
 
     pub async fn connect_to_network(&self, dest: &NetworkClient) -> Result<()> {
         if !matches!(self.iface_type, InterfaceType::Ethernet) {
-            return Err(Error::MissingData);
+            return Err(Error::Interface(
+                "Ethernet and serial interfaces cannot be connected to each other.".to_string(),
+            ));
         }
         self.connect(dest.id().to_string()).await
     }
@@ -154,7 +158,10 @@ impl InterfaceClient {
                         .await?
                         .ethernet
                         .remove(&self.id)
-                        .ok_or(Error::Invalid("Interface not found".to_string()))?
+                        .ok_or(Error::Interface(format!(
+                            "Ethernet interface '{}' not found",
+                            self.id
+                        )))?
                         .network_id;
 
                 let network =

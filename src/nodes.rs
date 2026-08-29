@@ -466,15 +466,18 @@ pub struct AddNodeRequest<T> {
 impl<T: TypedNode> AddNodeRequest<T> {
     pub fn from_template(template: &NodeTemplate) -> Result<Self> {
         if template.node_type != T::NODE_TYPE {
-            return Err(Error::Invalid(format!(
-                "incorrect node type: expected {}, got {}",
+            return Err(Error::Node(format!(
+                "Incorrect type, expected '{}', got '{}'",
                 template.node_type,
                 T::NODE_TYPE
             )));
         }
 
         if template.description.ends_with(".missing") {
-            return Err(Error::Invalid("image missing for template".into()));
+            return Err(Error::Node(format!(
+                "Cannot create node as image for template '{}' is missing",
+                template.name
+            )));
         }
 
         let mut defaults = template.default_map();
@@ -665,8 +668,8 @@ pub struct EditNodeRequest<T> {
 impl<T: TypedNode> EditNodeRequest<T> {
     fn from_node(node: &Node) -> Result<Self> {
         if node.node_type != T::NODE_TYPE {
-            return Err(Error::Invalid(format!(
-                "incorrect node type: expected {}, got {}",
+            return Err(Error::Node(format!(
+                "Incorrect type, expected '{}', got '{}'",
                 node.node_type,
                 T::NODE_TYPE
             )));

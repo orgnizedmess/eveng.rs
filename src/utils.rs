@@ -110,26 +110,14 @@ where
 
 /// Validation for names in EVE-NG. Allows for letters, digits
 /// and an additional set of characters depending on the caller.
-pub(crate) fn validate_name(name: impl Into<String>, extra: &[char]) -> crate::Result<()> {
-    let name = name.into();
-    if let Some(c) = name
-        .chars()
-        .find(|c| !(c.is_ascii_alphanumeric() || extra.contains(c)))
-    {
-        return Err(crate::Error::InvalidName(c));
-    }
-    Ok(())
-}
-
-/// Validates the specified path name, which could be a folder or a lab name.
-pub(crate) fn validate_pathname(pathname: impl Into<String>) -> crate::Result<()> {
-    validate_name(pathname, &['_', '-', ' '])
+pub(crate) fn validate_name(name: &str, extra: &[char]) -> bool {
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || extra.contains(&c))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Error, Result};
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
@@ -174,23 +162,5 @@ mod tests {
             serde_json::from_str(r#"{"code":200,"status":"success","message":"ok","data":[]}"#)
                 .unwrap();
         assert!(r.data.unwrap().0.is_empty());
-    }
-
-    #[test]
-    fn validate_folder_name() {
-        let result = validate_pathname("Test Folder");
-        assert!(result.is_ok());
-
-        let result = validate_pathname("New+Folder");
-        assert!(matches!(result, Err(Error::InvalidName('+'))));
-    }
-
-    #[test]
-    fn validate_lab_name() {
-        let result = validate_pathname("Test");
-        assert!(result.is_ok());
-
-        let result = validate_pathname("Test%");
-        assert!(matches!(result, Err(Error::InvalidName('%'))));
     }
 }

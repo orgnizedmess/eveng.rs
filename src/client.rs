@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn invalid_client_builder() {
         let err = Client::builder("eveng.example.com").unwrap_err();
-        assert!(matches!(err, Error::Url(_)));
+        assert!(matches!(err, Error::InvalidUrl(_)));
     }
 
     #[test]

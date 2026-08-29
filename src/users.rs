@@ -1,7 +1,7 @@
 //! Clients and models for managing users on the EVE-NG instance.
 
 use crate::utils::{WireMap, empty_string_is_none, validate_name};
-use crate::{Client, Result};
+use crate::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -124,7 +124,16 @@ impl UserClient {
 
 /// Validates the specified username.
 fn validate_username(username: impl Into<String>) -> Result<()> {
-    validate_name(username, &['_', '-'])
+    let username = username.into();
+
+    if !validate_name(&username, &['_', '-']) {
+        return Err(Error::User(format!(
+            "Invalid username '{}', must contain [A-Za-z0-9_-] chars only",
+            username
+        )));
+    }
+
+    Ok(())
 }
 
 /// Request for adding a user.
@@ -248,7 +257,6 @@ impl EditUserRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Error;
 
     #[test]
     fn validate_user_name() {
@@ -256,6 +264,6 @@ mod tests {
         assert!(result.is_ok());
 
         let result = validate_username("test user");
-        assert!(matches!(result, Err(Error::InvalidName(' '))));
+        assert!(matches!(result, Err(Error::User { .. })));
     }
 }
