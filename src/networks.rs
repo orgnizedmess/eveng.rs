@@ -59,27 +59,24 @@ impl NetworksClient {
             .post(&format!("labs{}/networks", self.path), &params)
             .await?
             .into_data()?;
-        Ok(NetworkClient::new(
-            self.client.clone(),
-            self.path.clone(),
-            resp.id,
-        ))
+
+        Ok(self.network(resp.id))
+    }
+
+    pub fn network(&self, id: u32) -> NetworkClient {
+        NetworkClient::new(self.client.clone(), self.path.clone(), id)
     }
 }
 
 pub struct NetworkClient {
-    client: Client,
-    path: LabPath,
-    id: u32,
+    pub(crate) client: Client,
+    pub(crate) path: LabPath,
+    pub(crate) id: u32,
 }
 
 impl NetworkClient {
     pub(crate) fn new(client: Client, path: LabPath, id: u32) -> Self {
         Self { client, path, id }
-    }
-
-    pub fn id(&self) -> &u32 {
-        &self.id
     }
 
     /// Gets the network's details.

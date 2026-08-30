@@ -1,7 +1,7 @@
 //! Clients and models for managing nodes within a lab.
 
 use crate::interfaces::InterfaceType;
-use crate::interfaces::{InterfaceClient, InterfacesClient};
+use crate::interfaces::{EthernetInterface, InterfaceClient, InterfacesClient, SerialInterface};
 use crate::labs::{LabClient, LabPath};
 use crate::templates::NodeTemplate;
 use crate::utils::{WireMap, empty_string_is_none, number_from_string};
@@ -131,6 +131,7 @@ pub enum NodeStatus {
     Stopping = 3,
 }
 
+/// A client to manage nodes.
 pub struct NodesClient {
     client: Client,
     path: LabPath,
@@ -155,6 +156,7 @@ impl NodesClient {
             .0)
     }
 
+    /// Adds a node.
     pub async fn add<T: TypedNode>(&self, params: AddNodeRequest<T>) -> Result<NodeClient> {
         self.lab().open().await?;
 
@@ -223,6 +225,7 @@ impl NodesClient {
     }
 }
 
+/// A client to manage a single node.
 pub struct NodeClient {
     client: Client,
     path: LabPath,
@@ -341,28 +344,19 @@ impl NodeClient {
         Ok(())
     }
 
+    /// Returns a client to manage interfaces.
     pub fn interfaces(&self) -> InterfacesClient {
         InterfacesClient::new(self.client.clone(), self.path.clone(), self.id)
     }
 
-    pub fn ethernet(&self, id: u32) -> InterfaceClient {
-        InterfaceClient::new(
-            self.client.clone(),
-            self.path.clone(),
-            self.id,
-            id,
-            InterfaceType::Ethernet,
-        )
+    /// Returns a client to manage an ethernet interface.
+    pub fn ethernet(&self, id: u32) -> InterfaceClient<EthernetInterface> {
+        InterfaceClient::ethernet(self.client.clone(), self.path.clone(), self.id, id)
     }
 
-    pub fn serial(&self, id: u32) -> InterfaceClient {
-        InterfaceClient::new(
-            self.client.clone(),
-            self.path.clone(),
-            self.id,
-            id,
-            InterfaceType::Serial,
-        )
+    /// Returns a client to manage a serial interface.
+    pub fn serial(&self, id: u32) -> InterfaceClient<SerialInterface> {
+        InterfaceClient::serial(self.client.clone(), self.path.clone(), self.id, id)
     }
 }
 
