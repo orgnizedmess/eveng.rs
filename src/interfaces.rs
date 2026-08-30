@@ -1,5 +1,5 @@
 ///! Types and clients to manage interfaces of a node.
-use crate::labs::LabPath;
+use crate::labs::{LabClient, LabPath};
 use crate::networks::{AddNetworkRequest, EditNetworkRequest};
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::{NodeClient, NodeType};
@@ -106,7 +106,17 @@ impl<T: TypedInterface> InterfaceClient<T> {
         }
     }
 
+    pub fn lab(&self) -> LabClient {
+        LabClient::from_path(self.client.clone(), self.path.clone())
+    }
+
+    pub fn node(&self) -> NodeClient {
+        NodeClient::new(self.client.clone(), self.path.clone(), self.id)
+    }
+
     async fn connect(&self, dest_id: String) -> Result<()> {
+        self.lab().open().await?;
+
         let req = serde_json::json!({self.id.to_string(): dest_id});
         self.client
             .put::<(), serde_json::Value>(
@@ -136,47 +146,85 @@ impl InterfaceClient<EthernetInterface> {
             )))
     }
 
+    async fn is_connected(&self) -> Result<bool> {
+        Ok(self.get().await?.network_id != 0)
+    }
+
     /// Creates a point-to-point link between two nodes.
-    pub async fn connect_to_node(
-        &self,
-        dest: &InterfaceClient<EthernetInterface>,
-    ) -> Result<()> {
-        let src_node = NodeClient::new(self.client.clone(), self.path.clone(), self.node_id)
+    pub async fn connect_to_node(&self, dest: &InterfaceClient<EthernetInterface>) -> Result<()> {
+        if self.path.as_str() != dest.path.as_str() {
+            return Err(Error::Interface(
+                "Nodes from different labs cannot be connected.".to_string(),
+            ));
+        }
+
+        if self.node_id == dest.node_id {
+            return Err(Error::Interface(
+                "Source and destination nodes cannot be the same.".to_string(),
+            ));
+        }
+
+        if self.is_connected().await? {
+            return Err(Error::Interface(
+                "Source interface is already connected".to_string(),
+            ));
+        }
+
+        if dest.is_connected().await? {
+            return Err(Error::Interface(
+                "Destination interface is already connected".to_string(),
+            ));
+        }
+
+        let src = NodeClient::new(self.client.clone(), self.path.clone(), self.node_id)
             .get()
             .await?;
 
         let bridge = NetworksClient::new(self.client.clone(), self.path.clone())
-            .add(
-                AddNetworkRequest::new("bridge")
-                    .name(format!("Net-{}iface{}", src_node.name, self.id)),
-            )
+            .add(AddNetworkRequest::new("bridge").name(format!("Net-{}iface{}", src.name, self.id)))
             .await?;
 
         self.connect(bridge.id.to_string()).await?;
-        dest.connect(bridge.id.to_string()).await?;
+        if let Err(e) = dest.connect(bridge.id.to_string()).await {
+            bridge.delete().await?;
+            return Err(e);
+        }
 
+        // Setting the bridge to visibility 0 during creation causes errors,
+        // hence it requires a separate request.
         bridge.edit(EditNetworkRequest::new().visibility(0)).await
     }
 
     /// Create a connection to the specified node's ethernet interface.
-    ///
-    /// This will overwrite an existing connection if one exists.
     pub async fn connect_to_network(&self, dest: &NetworkClient) -> Result<()> {
+        if self.path.as_str() != dest.path.as_str() {
+            return Err(Error::Interface(
+                "Devices from different labs cannot be connected.".to_string(),
+            ));
+        }
+
+        if self.is_connected().await? {
+            return Err(Error::Interface(
+                "Source interface is already connected".to_string(),
+            ));
+        }
+
         self.connect(dest.id.to_string()).await
     }
 
     /// Removes an existing connection on the ethernet interface.
     pub async fn disconnect(&self) -> Result<()> {
+        self.lab().open().await?;
+
         let network_id = self.get().await?.network_id;
-
         let network = NetworkClient::new(self.client.clone(), self.path.clone(), network_id);
+        let info = network.get().await?;
 
-        if network.get().await?.network_type == "bridge" {
+        if info.network_type == "bridge" && info.count == 2 && info.visibility == 0 {
             network.delete().await?;
-            Ok(())
-        } else {
-            self.connect(String::new()).await
         }
+
+        self.connect(String::new()).await
     }
 }
 
@@ -198,11 +246,36 @@ impl InterfaceClient<SerialInterface> {
             )))
     }
 
+    async fn is_connected(&self) -> Result<bool> {
+        Ok(self.get().await?.remote_id != 0)
+    }
+
     /// Creates a point-to-point link between two nodes.
-    pub async fn connect_to_node(
-        &self,
-        dest: &InterfaceClient<SerialInterface>,
-    ) -> Result<()> {
+    pub async fn connect_to_node(&self, dest: &InterfaceClient<SerialInterface>) -> Result<()> {
+        if self.path.as_str() != dest.path.as_str() {
+            return Err(Error::Interface(
+                "Nodes from different labs cannot be connected.".to_string(),
+            ));
+        }
+
+        if self.node_id == dest.node_id {
+            return Err(Error::Interface(
+                "Source and destination nodes cannot be the same.".to_string(),
+            ));
+        }
+
+        if self.is_connected().await? {
+            return Err(Error::Interface(
+                "Source interface is already connected".to_string(),
+            ));
+        }
+
+        if dest.is_connected().await? {
+            return Err(Error::Interface(
+                "Destination interface is already connected".to_string(),
+            ));
+        }
+
         let remote_id = format!("{}:{}", dest.node_id, dest.id);
         self.connect(remote_id).await
     }

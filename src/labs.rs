@@ -283,7 +283,12 @@ impl LabClient {
     pub(crate) async fn open(&self) -> Result<()> {
         match self.labs().current().await? {
             Some(lab) if lab.path == self.path => return Ok(()),
-            Some(lab) => lab.close_inner().await?,
+            Some(lab) => {
+                return Err(Error::Lab(format!(
+                    "Cannot open lab '{}' because lab '{}' is currently open.",
+                    self.path, lab.path
+                )));
+            }
             None => {}
         }
 
