@@ -1,6 +1,5 @@
 use crate::folders::{FolderClient, FoldersClient};
 use crate::system::SystemClient;
-use crate::templates::TemplateClient;
 use crate::users::{UserClient, UsersClient};
 use crate::utils::number_from_string;
 use crate::{Error, Result};
@@ -13,7 +12,7 @@ use std::time::Duration;
 /// Main entry point: A client for the EVE-NG API.
 #[derive(Debug, Clone)]
 pub struct Client {
-    base_url: Arc<Url>,
+    pub(crate) base_url: Arc<Url>,
     api: reqwest::Client,
 }
 

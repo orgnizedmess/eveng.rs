@@ -63,27 +63,59 @@ impl InterfacesClient {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum InterfaceType {
     Ethernet,
     Serial,
+}
+
+impl std::fmt::Display for InterfaceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            InterfaceType::Ethernet => "ethernet",
+            InterfaceType::Serial => "serial",
+        };
+
+        f.write_str(value)
+    }
 }
 
 mod private {
     pub trait Sealed {}
 }
 
-pub trait TypedInterface: private::Sealed {
+pub trait TypedInterface: private::Sealed + Sized {
     const INTERFACE_TYPE: InterfaceType;
+
+    fn take(ifaces: Interfaces, id: u32) -> Option<Self>;
+    fn is_connected(&self) -> bool;
 }
 
 impl private::Sealed for EthernetInterface {}
 impl TypedInterface for EthernetInterface {
     const INTERFACE_TYPE: InterfaceType = InterfaceType::Ethernet;
+
+    fn take(mut ifaces: Interfaces, id: u32) -> Option<Self> {
+        ifaces.ethernet.remove(&id)
+    }
+
+    fn is_connected(&self) -> bool {
+        self.network_id != 0
+    }
 }
 
 impl private::Sealed for SerialInterface {}
 impl TypedInterface for SerialInterface {
     const INTERFACE_TYPE: InterfaceType = InterfaceType::Serial;
+
+    fn take(mut ifaces: Interfaces, id: u32) -> Option<Self> {
+        ifaces.serial.remove(&id)
+    }
+
+    fn is_connected(&self) -> bool {
+        self.remote_id != 0
+    }
 }
 
 /// A client to manage a single interface.
@@ -106,12 +138,60 @@ impl<T: TypedInterface> InterfaceClient<T> {
         }
     }
 
-    pub fn lab(&self) -> LabClient {
+    pub fn interfaces(&self) -> InterfacesClient {
+        InterfacesClient::new(self.client.clone(), self.path.clone(), self.node_id)
+    }
+
+    fn lab(&self) -> LabClient {
         LabClient::from_path(self.client.clone(), self.path.clone())
     }
 
-    pub fn node(&self) -> NodeClient {
-        NodeClient::new(self.client.clone(), self.path.clone(), self.id)
+    pub async fn get(&self) -> Result<T> {
+        let ifaces = self.interfaces().list().await?;
+
+        T::take(ifaces, self.id).ok_or(Error::Interface(format!(
+            "{} Interface '{}' not found",
+            T::INTERFACE_TYPE,
+            self.id
+        )))
+    }
+
+    pub async fn is_connected(&self) -> Result<bool> {
+        Ok(self.get().await?.is_connected())
+    }
+
+    async fn ensure_connectable(&self, dest: &Self) -> Result<()> {
+        if self.client.base_url != dest.client.base_url {
+            return Err(Error::Interface(
+                "Nodes from different clients cannot be connected.".to_string(),
+            ));
+        }
+
+        if self.path.as_str() != dest.path.as_str() {
+            return Err(Error::Interface(
+                "Nodes from different labs cannot be connected.".to_string(),
+            ));
+        }
+
+        if self.node_id == dest.node_id {
+            return Err(Error::Interface(
+                "Source and destination nodes cannot be the same.".to_string(),
+            ));
+        }
+
+        if self.is_connected().await? {
+            return Err(Error::Interface(
+                "Source interface is already connected".to_string(),
+            ));
+        }
+
+        if dest.is_connected().await? {
+            return Err(Error::Interface(
+                "Destination interface is already connected".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
     async fn connect(&self, dest_id: String) -> Result<()> {
@@ -133,48 +213,9 @@ impl InterfaceClient<EthernetInterface> {
         Self::new(client, path, node_id, id)
     }
 
-    /// Get an ethernet interface.
-    pub async fn get(&self) -> Result<EthernetInterface> {
-        InterfacesClient::new(self.client.clone(), self.path.clone(), self.node_id)
-            .list()
-            .await?
-            .ethernet
-            .remove(&self.id)
-            .ok_or(Error::Interface(format!(
-                "Ethernet interface '{}' not found",
-                self.id
-            )))
-    }
-
-    async fn is_connected(&self) -> Result<bool> {
-        Ok(self.get().await?.network_id != 0)
-    }
-
-    /// Creates a point-to-point link between two nodes.
+    /// Creates a point-to-point connection between ethernet interfaces of two nodes.
     pub async fn connect_to_node(&self, dest: &InterfaceClient<EthernetInterface>) -> Result<()> {
-        if self.path.as_str() != dest.path.as_str() {
-            return Err(Error::Interface(
-                "Nodes from different labs cannot be connected.".to_string(),
-            ));
-        }
-
-        if self.node_id == dest.node_id {
-            return Err(Error::Interface(
-                "Source and destination nodes cannot be the same.".to_string(),
-            ));
-        }
-
-        if self.is_connected().await? {
-            return Err(Error::Interface(
-                "Source interface is already connected".to_string(),
-            ));
-        }
-
-        if dest.is_connected().await? {
-            return Err(Error::Interface(
-                "Destination interface is already connected".to_string(),
-            ));
-        }
+        self.ensure_connectable(dest).await?;
 
         let src = NodeClient::new(self.client.clone(), self.path.clone(), self.node_id)
             .get()
@@ -190,13 +231,19 @@ impl InterfaceClient<EthernetInterface> {
             return Err(e);
         }
 
-        // Setting the bridge to visibility 0 during creation causes errors,
-        // hence it requires a separate request.
+        // Making the bridge invisible during creation causes errors,
+        // hence it requires a separate request
         bridge.edit(EditNetworkRequest::new().visibility(0)).await
     }
 
-    /// Create a connection to the specified node's ethernet interface.
+    /// Creates a connection between a node and a network.
     pub async fn connect_to_network(&self, dest: &NetworkClient) -> Result<()> {
+        if self.client.base_url != dest.client.base_url {
+            return Err(Error::Interface(
+                "Nodes from different clients cannot be connected.".to_string(),
+            ));
+        }
+
         if self.path.as_str() != dest.path.as_str() {
             return Err(Error::Interface(
                 "Devices from different labs cannot be connected.".to_string(),
@@ -214,17 +261,21 @@ impl InterfaceClient<EthernetInterface> {
 
     /// Removes an existing connection on the ethernet interface.
     pub async fn disconnect(&self) -> Result<()> {
-        self.lab().open().await?;
+        let iface = self.get().await?;
+        if !iface.is_connected() {
+            return Ok(())
+        }
 
-        let network_id = self.get().await?.network_id;
-        let network = NetworkClient::new(self.client.clone(), self.path.clone(), network_id);
+        let network =
+            NetworkClient::new(self.client.clone(), self.path.clone(), iface.network_id);
         let info = network.get().await?;
 
         if info.network_type == "bridge" && info.count == 2 && info.visibility == 0 {
-            network.delete().await?;
+            // Deleting the network is sufficient for a node -> node connection
+            network.delete().await
+        } else {
+            self.connect(String::new()).await
         }
-
-        self.connect(String::new()).await
     }
 }
 
@@ -233,48 +284,9 @@ impl InterfaceClient<SerialInterface> {
         Self::new(client, path, node_id, id)
     }
 
-    /// Gets a serial interface's details.
-    pub async fn get(&self) -> Result<SerialInterface> {
-        InterfacesClient::new(self.client.clone(), self.path.clone(), self.node_id)
-            .list()
-            .await?
-            .serial
-            .remove(&self.id)
-            .ok_or(Error::Interface(format!(
-                "Serial interface '{}' not found",
-                self.id
-            )))
-    }
-
-    async fn is_connected(&self) -> Result<bool> {
-        Ok(self.get().await?.remote_id != 0)
-    }
-
-    /// Creates a point-to-point link between two nodes.
+    /// Creates a point-to-point link between serial interfaces of two nodes.
     pub async fn connect_to_node(&self, dest: &InterfaceClient<SerialInterface>) -> Result<()> {
-        if self.path.as_str() != dest.path.as_str() {
-            return Err(Error::Interface(
-                "Nodes from different labs cannot be connected.".to_string(),
-            ));
-        }
-
-        if self.node_id == dest.node_id {
-            return Err(Error::Interface(
-                "Source and destination nodes cannot be the same.".to_string(),
-            ));
-        }
-
-        if self.is_connected().await? {
-            return Err(Error::Interface(
-                "Source interface is already connected".to_string(),
-            ));
-        }
-
-        if dest.is_connected().await? {
-            return Err(Error::Interface(
-                "Destination interface is already connected".to_string(),
-            ));
-        }
+        self.ensure_connectable(dest).await?;
 
         let remote_id = format!("{}:{}", dest.node_id, dest.id);
         self.connect(remote_id).await

@@ -1,6 +1,7 @@
 //! Clients and models for managing labs within a folder.
 
 use crate::folders::FolderPath;
+use crate::interfaces::InterfaceType;
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::NodeStatus;
 use crate::nodes::{NodeClient, NodesClient};
@@ -59,7 +60,7 @@ pub struct TopologyEntry {
     pub source_label: String,
     pub source_type: String,
     #[serde(rename = "type")]
-    pub topology_type: String,
+    pub connection_type: InterfaceType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

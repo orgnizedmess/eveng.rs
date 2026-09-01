@@ -1,6 +1,5 @@
 //! Clients and models for managing nodes within a lab.
 
-use crate::interfaces::InterfaceType;
 use crate::interfaces::{EthernetInterface, InterfaceClient, InterfacesClient, SerialInterface};
 use crate::labs::{LabClient, LabPath};
 use crate::templates::NodeTemplate;
