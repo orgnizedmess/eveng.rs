@@ -1,6 +1,6 @@
 use crate::folders::{FolderClient, FoldersClient};
 use crate::system::SystemClient;
-use crate::users::{UserClient, UsersClient};
+use crate::users::{UserClient, UserName, UsersClient};
 use crate::utils::number_from_string;
 use crate::{Error, Result};
 use reqwest::{Method, Url};
@@ -68,6 +68,8 @@ impl ClientBuilder {
                 .build()?,
         };
 
+        let username = UserName::new(username.into())?;
+
         #[derive(Serialize)]
         struct LoginRequest {
             username: String,
@@ -76,7 +78,7 @@ impl ClientBuilder {
         }
 
         let params = &LoginRequest {
-            username: username.into(),
+            username: username.to_string(),
             password: password.into(),
             html5: self.html5,
         };
@@ -146,7 +148,7 @@ impl Client {
     }
 
     /// Returns a client to manage a single user.
-    pub fn user(&self, username: &str) -> UserClient {
+    pub fn user(&self, username: impl Into<String>) -> Result<UserClient> {
         UserClient::new(self.clone(), username)
     }
 

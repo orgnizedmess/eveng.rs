@@ -79,22 +79,54 @@ impl UsersClient {
         self.client
             .post::<(), AddUserRequest>("users", &params)
             .await?;
-        Ok(UserClient::new(self.client.clone(), &params.username))
+        self.user(&params.username)
+    }
+
+    pub fn user(&self, username: impl Into<String>) -> Result<UserClient> {
+        UserClient::new(self.client.clone(), username)
+    }
+}
+
+/// Newtype for a valid username.
+pub(crate) struct UserName(String);
+
+impl std::fmt::Display for UserName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0.as_str())
+    }
+}
+
+impl UserName {
+    pub(crate) fn new(username: impl Into<String>) -> Result<Self> {
+        let username = username.into();
+
+        if username == "" {
+            return Err(Error::User("Username cannot be empty".to_string()));
+        }
+
+        if !validate_name(&username, &['-', '_']) {
+            return Err(Error::User(format!(
+                "Invalid username {}, must contain letters, digits, '-' and '_'.",
+                &username
+            )));
+        }
+
+        Ok(UserName(username))
     }
 }
 
 /// A client to manage a single user.
 pub struct UserClient {
     client: Client,
-    username: String,
+    username: UserName,
 }
 
 impl UserClient {
-    pub(crate) fn new(client: Client, username: &str) -> Self {
-        Self {
+    pub(crate) fn new(client: Client, username: impl Into<String>) -> Result<Self> {
+        Ok(Self {
             client,
-            username: username.to_string(),
-        }
+            username: UserName::new(username)?,
+        })
     }
 
     /// Gets the user's details.
@@ -122,20 +154,6 @@ impl UserClient {
     }
 }
 
-/// Validates the specified username.
-fn validate_username(username: impl Into<String>) -> Result<()> {
-    let username = username.into();
-
-    if !validate_name(&username, &['_', '-']) {
-        return Err(Error::User(format!(
-            "Invalid username '{}', must contain [A-Za-z0-9_-] chars only",
-            username
-        )));
-    }
-
-    Ok(())
-}
-
 /// Request for adding a user.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AddUserRequest {
@@ -158,11 +176,10 @@ impl AddUserRequest {
         password: impl Into<String>,
         role: impl Into<String>,
     ) -> Result<Self> {
-        let username = username.into();
-        validate_username(&username)?;
+        let username = UserName::new(username.into())?;
 
         Ok(Self {
-            username,
+            username: username.to_string(),
             password: password.into(),
             role: role.into(),
             expiration: -1,
@@ -259,11 +276,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn validate_user_name() {
-        let result = validate_username("test");
+    fn valid_username() -> Result<()> {
+        let result = UserName::new("test");
         assert!(result.is_ok());
 
-        let result = validate_username("test user");
-        assert!(matches!(result, Err(Error::User { .. })));
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_username() -> Result<()> {
+        let result = UserName::new("test user");
+        assert!(result.is_err());
+
+        Ok(())
     }
 }
