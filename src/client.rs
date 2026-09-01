@@ -137,7 +137,7 @@ impl Client {
     }
 
     /// Returns a client to manage a single folder.
-    pub fn folder(&self, path: &str) -> FolderClient {
+    pub fn folder(&self, path: &str) -> Result<FolderClient> {
         FolderClient::new(self.clone(), path)
     }
 

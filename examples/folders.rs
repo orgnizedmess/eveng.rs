@@ -6,7 +6,7 @@ use eveng::folders::FolderEntry;
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let root = client.folder("/");
+    let root = client.folder("/")?;
 
     // List root folder
     let resp = root.list().await?;

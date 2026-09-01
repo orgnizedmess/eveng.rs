@@ -6,7 +6,7 @@ use eveng::networks::{AddNetworkRequest, EditNetworkRequest};
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let networks = client.folder("/").lab("kimpfler-test.unl").networks();
+    let networks = client.folder("/")?.lab("kimpfler-test.unl")?.networks();
 
     // List
     let resp = networks.list().await?;

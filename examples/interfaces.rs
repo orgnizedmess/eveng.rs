@@ -5,8 +5,8 @@ use eveng::Result;
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let lab = client.folder("/").lab("test");
-    eprintln!("{:#?}", lab.links().await?);
+    let lab = client.folder("/")?.lab("test")?;
+    let lab2 = client.folder("/")?.lab("kimpfler-test")?;
 
     let node1 = lab.node(7);
     eprintln!("{:#?}", node1.interfaces().list().await?);

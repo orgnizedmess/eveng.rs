@@ -83,17 +83,15 @@ impl LabsClient {
 
     /// Creates a new lab.
     pub async fn add(&self, params: AddLabRequest) -> Result<LabClient> {
-        let params = params.path(self.path.clone());
+        let params = params.path(self.path.as_str());
 
         self.client
             .post::<(), AddLabRequest>("labs", &params)
             .await?;
 
-        Ok(LabClient::new(
-            self.client.clone(),
-            FolderPath::new(&params.path),
-            &params.name,
-        ))
+        // name is already validated in params, hence not validating again
+        let new_path = LabPath::from_validated(self.path.clone(), &params.name);
+        Ok(LabClient::from_path(self.client.clone(), new_path))
     }
 
     /// Returns a client for the currently open lab.
@@ -111,26 +109,39 @@ impl LabsClient {
     }
 }
 
+/// Newtype to manage the path to a lab.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LabPath(Arc<str>);
+pub(crate) struct LabPath(Arc<str>);
 
 impl LabPath {
-    pub fn new(path: FolderPath, name: impl Into<String>) -> Self {
-        let mut lab = name.into();
+    pub fn new(path: FolderPath, name: impl AsRef<str>) -> Result<Self> {
+        let name = name.as_ref();
+        Self::validate(name)?;
 
-        if !lab.ends_with(".unl") {
-            lab.push_str(".unl")
+        Ok(Self(Arc::from(Self::join(path, name))))
+    }
+
+    fn validate(name: &str) -> Result<()> {
+        if name == "" {
+            return Err(Error::Lab("Lab name cannot be empty".to_string()));
         }
 
-        Self(Arc::from(format!(
-            "{}/{}",
-            path.as_str().trim_end_matches("/"),
-            lab
-        )))
+        if !validate_name(&name, &['-', '_', ' ']) {
+            return Err(Error::Lab(format!(
+                "Invalid lab name '{}', must only contain letters, digits, spaces and '-'/'_'",
+                name
+            )));
+        }
+
+        Ok(())
     }
 
     pub(crate) fn from_str(path: &str) -> Self {
         Self(Arc::from(path))
+    }
+
+    pub(crate) fn from_validated(path: FolderPath, name: &str) -> Self {
+        Self::from_str(&Self::join(path, name))
     }
 
     pub fn as_str(&self) -> &str {
@@ -138,7 +149,7 @@ impl LabPath {
     }
 
     pub fn folder(&self) -> FolderPath {
-        FolderPath::new(
+        FolderPath::from_str(
             self.0
                 .rsplit_once("/")
                 .map(|(p, _)| p)
@@ -147,12 +158,19 @@ impl LabPath {
         )
     }
 
-    pub fn lab(&self) -> &str {
+    pub fn lab_file(&self) -> &str {
         self.0.rsplit("/").next().unwrap()
     }
 
     pub fn lab_name(&self) -> &str {
-        self.lab().split_once(".").map(|(name, _)| name).unwrap()
+        self.lab_file()
+            .split_once(".")
+            .map(|(name, _)| name)
+            .unwrap()
+    }
+
+    fn join(folder: FolderPath, lab: &str) -> String {
+        format!("{}/{}.unl", folder.as_str(), lab)
     }
 }
 
@@ -169,11 +187,11 @@ pub struct LabClient {
 }
 
 impl LabClient {
-    pub(crate) fn new(client: Client, path: FolderPath, name: impl Into<String>) -> Self {
-        Self {
+    pub(crate) fn new(client: Client, path: FolderPath, name: impl AsRef<str>) -> Result<Self> {
+        Ok(Self {
             client,
-            path: LabPath::new(path, name),
-        }
+            path: LabPath::new(path, name)?,
+        })
     }
 
     pub(crate) fn from_path(client: Client, path: LabPath) -> Self {
@@ -196,8 +214,6 @@ impl LabClient {
     ///
     /// To change the lab's name, see [`rename`](Self::rename).
     pub async fn edit(&self, params: EditLabRequest) -> Result<()> {
-        // Docs specify that only one parameter can be changed per request, but
-        // editing multiple parameters works?
         self.client
             .put::<(), EditLabRequest>(&format!("labs{}", self.path), &params)
             .await?;
@@ -207,32 +223,28 @@ impl LabClient {
     /// Renames the lab.
     ///
     /// To update other lab details, see [`edit`](Self::edit).
-    pub async fn rename(self, name: impl Into<String>) -> Result<Self> {
-        let name = name.into();
-        validate_lab_name(&name)?;
+    pub async fn rename(self, name: impl AsRef<str>) -> Result<Self> {
+        let new_path = LabPath::new(self.path.folder(), name.as_ref())?;
 
-        let params = EditLabRequest::new().name(&name);
-
+        let params = EditLabRequest::new().name(new_path.lab_name());
         self.client
             .put::<(), EditLabRequest>(&format!("labs{}", self.path), &params)
             .await?;
 
-        Ok(Self::new(self.client.clone(), self.path.folder(), name))
+        Ok(Self::from_path(self.client.clone(), new_path))
     }
 
     /// Moves the lab to the specified path.
-    pub async fn move_to(self, folder_path: &str) -> Result<Self> {
-        let params = EditLabRequest::new().path(folder_path);
+    pub async fn move_to(self, path: impl AsRef<str>) -> Result<Self> {
+        let folder = FolderPath::new(path.as_ref())?;
+        let params = EditLabRequest::new().path(folder.as_str());
 
         self.client
             .put::<(), EditLabRequest>(&format!("labs{}/move", self.path), &params)
             .await?;
 
-        Ok(Self::new(
-            self.client.clone(),
-            FolderPath::new(folder_path),
-            self.path.lab_name(),
-        ))
+        let new_path = LabPath::from_validated(folder, self.path.lab_file());
+        Ok(Self::from_path(self.client.clone(), new_path))
     }
 
     /// Deletes the lab.
@@ -312,7 +324,7 @@ impl LabClient {
 
         if has_running_nodes {
             return Err(Error::Lab(format!(
-                "Lab '{}' cannot be closed as it has running nodes. Power them off before closing.",
+                "Lab '{}' cannot be closed as it has running nodes.",
                 self.path
             )));
         }
@@ -365,9 +377,11 @@ pub struct AddLabRequest {
 
 impl AddLabRequest {
     /// Creates a new request for adding a lab.
+    ///
+    /// `name` must only contain letters, digits, spaces, `-` and `_`.
     pub fn new(name: impl Into<String>) -> Result<Self> {
         let name = name.into();
-        validate_lab_name(&name)?;
+        LabPath::validate(&name)?;
 
         Ok(Self {
             name,
@@ -377,7 +391,7 @@ impl AddLabRequest {
         })
     }
 
-    /// Sets the lab's author name.
+    /// Sets the name of the lab's author.
     pub fn author(mut self, author: impl Into<String>) -> Self {
         self.author = Some(author.into());
         self
@@ -410,8 +424,8 @@ impl AddLabRequest {
         self
     }
 
-    pub(crate) fn path(mut self, path: FolderPath) -> Self {
-        self.path = path.as_str().into();
+    pub(crate) fn path(mut self, path: impl Into<String>) -> Self {
+        self.path = path.into();
         self
     }
 }
@@ -441,12 +455,13 @@ impl EditLabRequest {
         }
     }
 
-    /// Sets the lab's author name.
+    /// Sets the name of the lab's author.
     pub fn author(mut self, author: impl Into<String>) -> Self {
         self.author = Some(author.into());
         self
     }
 
+    /// Clears the name of the lab's author.
     pub fn clear_author(mut self) -> Self {
         self.author = Some(String::new());
         self
@@ -458,6 +473,7 @@ impl EditLabRequest {
         self
     }
 
+    /// Clears the lab's usage text.
     pub fn clear_body(mut self) -> Self {
         self.body = Some(String::new());
         self
@@ -469,6 +485,7 @@ impl EditLabRequest {
         self
     }
 
+    /// Clears the lab's description.
     pub fn clear_description(mut self) -> Self {
         self.description = Some(String::new());
         self
@@ -497,65 +514,59 @@ impl EditLabRequest {
     }
 }
 
-/// Validates the specified lab name.
-fn validate_lab_name(name: &str) -> crate::Result<()> {
-    if !validate_name(name, &['_', '-', ' ']) {
-        return Err(Error::Lab(format!(
-            "Invalid username '{}', must contain [A-Za-z0-9_- ] chars only",
-            name
-        )));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn test_folder() -> FolderPath {
+    fn test_folder() -> Result<FolderPath> {
         FolderPath::new("/Test Folder")
     }
 
-    fn new_folder() -> FolderPath {
+    fn new_folder() -> Result<FolderPath> {
         FolderPath::new("/New Folder")
     }
 
     #[test]
-    fn lab_path() {
-        let path = LabPath::new(test_folder(), "Test");
+    fn valid_lab_path() -> Result<()> {
+        let path = LabPath::new(test_folder()?, "Test")?;
 
         assert_eq!(path.as_str(), "/Test Folder/Test.unl");
         assert_eq!(path.folder().as_str(), "/Test Folder");
-        assert_eq!(path.lab_name(), "Test");
+        assert_eq!(path.lab_file(), "Test.unl");
+
+        Ok(())
     }
 
     #[test]
-    fn lab_rename() {
-        let path = LabPath::new(test_folder(), "Test");
-        let new_path = LabPath::new(path.folder(), "Test1");
+    fn invalid_lab_path() -> Result<()> {
+        let path = LabPath::new(test_folder()?, "Lab: Test");
+        assert!(path.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn lab_rename() -> Result<()> {
+        let path = LabPath::new(test_folder()?, "Test")?;
+        let new_path = LabPath::new(path.folder(), "Test1")?;
 
         assert_eq!(new_path.as_str(), "/Test Folder/Test1.unl");
         assert_eq!(new_path.folder().as_str(), "/Test Folder");
-        assert_eq!(new_path.lab(), "Test1.unl");
+        assert_eq!(new_path.lab_file(), "Test1.unl");
         assert_eq!(new_path.lab_name(), "Test1");
+
+        Ok(())
     }
 
     #[test]
-    fn lab_move() {
-        let path = LabPath::new(test_folder(), "Test");
-        let new_path = LabPath::new(new_folder(), path.lab());
+    fn lab_move() -> Result<()> {
+        let path = LabPath::new(test_folder()?, "Test")?;
+        let new_path = LabPath::new(new_folder()?, path.lab_name())?;
 
         assert_eq!(new_path.as_str(), "/New Folder/Test.unl");
         assert_eq!(new_path.folder().as_str(), "/New Folder");
-        assert_eq!(new_path.lab(), "Test.unl");
-    }
+        assert_eq!(new_path.lab_file(), "Test.unl");
 
-    #[test]
-    fn validate_labname() {
-        let result = validate_lab_name("Test");
-        assert!(result.is_ok());
-
-        let result = validate_lab_name("Test%");
-        assert!(matches!(result, Err(Error::Lab(..))));
+        Ok(())
     }
 }

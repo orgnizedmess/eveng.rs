@@ -7,7 +7,7 @@ use eveng::labs::{AddLabRequest, EditLabRequest};
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let folder = client.folder("/");
+    let folder = client.folder("/")?;
 
     // Add
     let req = AddLabRequest::new("Test1")?;

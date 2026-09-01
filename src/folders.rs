@@ -18,13 +18,12 @@ impl FoldersClient {
 
     /// Creates a new folder.
     pub async fn add(&self, params: &FolderEntry) -> Result<FolderClient> {
-        validate_folder_name(&params.name)?;
+        let path = FolderPath::from_parts(&params.path, &params.name)?;
 
         self.client
             .post::<(), FolderEntry>("folders", params)
             .await?;
 
-        let path = FolderPath::from_parts(&params.path, &params.name);
         Ok(FolderClient {
             client: self.client.clone(),
             path,
@@ -55,8 +54,9 @@ pub struct LabEntry {
     pub umtime: u64,
 }
 
+/// Newtype to manage the path to a folder.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FolderPath(Arc<str>);
+pub(crate) struct FolderPath(Arc<str>);
 
 impl std::fmt::Display for FolderPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -65,23 +65,54 @@ impl std::fmt::Display for FolderPath {
 }
 
 impl FolderPath {
-    pub fn new(path: &str) -> Self {
+    pub(crate) fn new(path: impl AsRef<str>) -> Result<Self> {
+        let path = path.as_ref();
+        Self::validate(path)?;
+
+        Ok(Self(Arc::from(path)))
+    }
+
+    fn validate(path: &str) -> Result<()> {
+        if path == "" {
+            return Err(Error::Folder("Path cannot be empty".to_string()));
+        }
+
+        if !path.starts_with("/") {
+            return Err(Error::Folder("Path must be an absolute path".to_string()));
+        }
+
+        for segment in path.split("/") {
+            Self::validate_segment(segment)?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_segment(name: &str) -> Result<()> {
+        if !validate_name(&name, &['-', '_', ' ']) {
+            return Err(Error::Folder(format!(
+                "Invalid folder segment '{}', must only contain letters, digits, spaces and '-'/'_'",
+                name
+            )));
+        }
+        Ok(())
+    }
+
+    // Creating from segments rather than the full path
+    pub(crate) fn from_parts(parent: impl AsRef<str>, leaf: impl AsRef<str>) -> Result<Self> {
+        Self::new(Self::join(parent.as_ref(), leaf.as_ref()))
+    }
+
+    // For cases where the path is already valid (eg: from an API response)
+    pub(crate) fn from_str(path: &str) -> Self {
         Self(Arc::from(path))
     }
 
-    pub fn from_parts(parent: &str, leaf: &str) -> Self {
-        Self(Arc::from(format!(
-            "{}/{}",
-            parent.trim_end_matches("/"),
-            leaf
-        )))
-    }
-
-    pub fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 
-    pub fn parent(&self) -> &str {
+    pub(crate) fn parent(&self) -> &str {
         self.0
             .rsplit_once("/")
             .map(|(p, _)| p)
@@ -89,8 +120,24 @@ impl FolderPath {
             .unwrap_or("/")
     }
 
-    pub fn leaf(&self) -> &str {
+    pub(crate) fn leaf(&self) -> &str {
         self.0.rsplit("/").next().unwrap()
+    }
+
+    // Only leaf needs to be validated
+    pub(crate) fn rename(&self, name: &str) -> Result<Self> {
+        Self::validate_segment(name)?;
+        Ok(Self::from_str(&Self::join(self.parent(), name)))
+    }
+
+    // Only parent needs to be validated
+    pub(crate) fn move_to(&self, path: &str) -> Result<Self> {
+        Self::validate(path)?;
+        Ok(Self::from_str(&Self::join(path, self.leaf())))
+    }
+
+    fn join(parent: &str, leaf: &str) -> String {
+        format!("{}/{}", parent.trim_end_matches("/"), leaf)
     }
 }
 
@@ -101,11 +148,11 @@ pub struct FolderClient {
 }
 
 impl FolderClient {
-    pub(crate) fn new(client: Client, path: &str) -> Self {
-        Self {
+    pub(crate) fn new(client: Client, path: &str) -> Result<Self> {
+        Ok(Self {
             client,
-            path: FolderPath::new(path),
-        }
+            path: FolderPath::new(path)?,
+        })
     }
 
     // Lists the contents of the folder.
@@ -119,9 +166,8 @@ impl FolderClient {
     // Renames the folder.
     pub async fn rename(self, name: impl AsRef<str>) -> Result<FolderClient> {
         let name = name.as_ref();
-        validate_folder_name(name)?;
 
-        let new_path = FolderPath::from_parts(self.path.parent(), name);
+        let new_path = self.path.rename(name)?;
         self.edit(new_path.as_str()).await?;
 
         Ok(FolderClient {
@@ -131,8 +177,10 @@ impl FolderClient {
     }
 
     /// Moves the folder to the specified path.
-    pub async fn move_to(self, folder_path: impl AsRef<str>) -> Result<FolderClient> {
-        let new_path = FolderPath::from_parts(folder_path.as_ref(), self.path.leaf());
+    pub async fn move_to(self, path: impl AsRef<str>) -> Result<FolderClient> {
+        let path = path.as_ref();
+
+        let new_path = self.path.move_to(path)?;
         self.edit(new_path.as_str()).await?;
 
         Ok(FolderClient {
@@ -165,58 +213,54 @@ impl FolderClient {
     }
 
     /// Returns a client for managing a single lab.
-    pub fn lab(&self, name: &str) -> LabClient {
+    pub fn lab(&self, name: &str) -> Result<LabClient> {
         LabClient::new(self.client.clone(), self.path.clone(), name)
     }
-}
-
-/// Validates the specified folder name.
-fn validate_folder_name(name: &str) -> crate::Result<()> {
-    if !validate_name(name, &['_', '-', ' ']) {
-        return Err(Error::Folder(format!(
-            "Invalid folder name '{}', must contain [A-Za-z0-9_- ] chars only",
-            name
-        )));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn folder_path() {
-        let path = FolderPath::new("/New Folder");
+    fn valid_folder_path() -> Result<()> {
+        let path = FolderPath::new("/New Folder")?;
 
         assert_eq!(path.parent(), "/");
         assert_eq!(path.leaf(), "New Folder");
+
+        Ok(())
     }
 
     #[test]
-    fn folder_rename() {
-        let path = FolderPath::new("/New Folder");
-        let new_path = FolderPath::from_parts(path.parent(), "Test Folder");
+    fn invalid_folder_path() -> Result<()> {
+        let path = FolderPath::new("New Folder");
+        assert!(path.is_err());
+
+        let path = FolderPath::new("/New+Folder");
+        assert!(path.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn folder_rename() -> Result<()> {
+        let path = FolderPath::new("/New Folder")?;
+        let new_path = path.rename("Test Folder")?;
 
         assert_eq!(new_path.parent(), "/");
         assert_eq!(new_path.leaf(), "Test Folder");
+
+        Ok(())
     }
 
     #[test]
-    fn folder_move() {
-        let path = FolderPath::new("/New Folder");
-        let new_path = FolderPath::from_parts("/Test Folder", path.leaf());
+    fn folder_move() -> Result<()> {
+        let path = FolderPath::new("/New Folder")?;
+        let new_path = path.move_to("/Test Folder")?;
 
         assert_eq!(new_path.as_str(), "/Test Folder/New Folder");
         assert_eq!(new_path.parent(), "/Test Folder");
         assert_eq!(new_path.leaf(), "New Folder");
-    }
 
-    #[test]
-    fn validate_foldername() {
-        let result = validate_folder_name("Test Folder");
-        assert!(result.is_ok());
-
-        let result = validate_folder_name("New+Folder");
-        assert!(matches!(result, Err(Error::Folder(..))));
+        Ok(())
     }
 }

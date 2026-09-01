@@ -6,7 +6,7 @@ use eveng::nodes::{AddNodeRequest, EditNodeRequest};
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let client = common::test_client().await?;
-    let lab = client.folder("/").lab("test");
+    let lab = client.folder("/")?.lab("test")?;
 
     let veos = client.node_template("veos").get().await?;
     let req = AddNodeRequest::qemu(&veos)?;
