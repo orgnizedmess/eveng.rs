@@ -100,7 +100,7 @@ impl UserName {
     pub(crate) fn new(username: impl Into<String>) -> Result<Self> {
         let username = username.into();
 
-        if username == "" {
+        if username.is_empty() {
             return Err(Error::User("Username cannot be empty".to_string()));
         }
 

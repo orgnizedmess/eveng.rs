@@ -82,8 +82,10 @@ impl ClientBuilder {
             password: password.into(),
             html5: self.html5,
         };
-        let _: Response<()> = client.post("auth/login", params).await?;
 
+        client
+            .post::<(), LoginRequest>("auth/login", params)
+            .await?;
         Ok(client)
     }
 }
@@ -106,7 +108,7 @@ impl<T> Response<T> {
 
 impl Client {
     /// Creates a new API client.
-    pub async fn new(
+    pub async fn login(
         base_url: impl AsRef<str>,
         username: impl Into<String>,
         password: impl Into<String>,
@@ -122,8 +124,8 @@ impl Client {
     }
 
     /// Logs out of the EVE-NG instance.
-    pub async fn logout(&self) -> Result<()> {
-        let _: Response<()> = self.get("auth/logout").await?;
+    pub async fn logout(self) -> Result<()> {
+        self.get::<()>("auth/logout").await?;
         Ok(())
     }
 

@@ -115,7 +115,7 @@ impl LabsClient {
 pub(crate) struct LabPath(Arc<str>);
 
 impl LabPath {
-    pub fn new(path: FolderPath, name: impl AsRef<str>) -> Result<Self> {
+    pub(crate) fn new(path: FolderPath, name: impl AsRef<str>) -> Result<Self> {
         let name = name.as_ref();
         Self::validate(name)?;
 
@@ -123,11 +123,11 @@ impl LabPath {
     }
 
     fn validate(name: &str) -> Result<()> {
-        if name == "" {
+        if name.is_empty() {
             return Err(Error::Lab("Lab name cannot be empty".to_string()));
         }
 
-        if !validate_name(&name, &['-', '_', ' ']) {
+        if !validate_name(name, &['-', '_', ' ']) {
             return Err(Error::Lab(format!(
                 "Invalid lab name '{}', must only contain letters, digits, spaces and '-'/'_'",
                 name
@@ -145,11 +145,11 @@ impl LabPath {
         Self::from_str(&Self::join(path, name))
     }
 
-    pub fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 
-    pub fn folder(&self) -> FolderPath {
+    pub(crate) fn folder(&self) -> FolderPath {
         FolderPath::from_str(
             self.0
                 .rsplit_once("/")
@@ -159,11 +159,11 @@ impl LabPath {
         )
     }
 
-    pub fn lab_file(&self) -> &str {
+    pub(crate) fn lab_file(&self) -> &str {
         self.0.rsplit("/").next().unwrap()
     }
 
-    pub fn lab_name(&self) -> &str {
+    pub(crate) fn lab_name(&self) -> &str {
         self.lab_file()
             .split_once(".")
             .map(|(name, _)| name)

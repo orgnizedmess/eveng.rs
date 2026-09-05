@@ -1,4 +1,5 @@
-///! Types and clients to manage interfaces of a node.
+//! Types and clients to manage interfaces of a node.
+
 use crate::labs::{LabClient, LabPath};
 use crate::networks::{AddNetworkRequest, EditNetworkRequest};
 use crate::networks::{NetworkClient, NetworksClient};
@@ -263,11 +264,10 @@ impl InterfaceClient<EthernetInterface> {
     pub async fn disconnect(&self) -> Result<()> {
         let iface = self.get().await?;
         if !iface.is_connected() {
-            return Ok(())
+            return Ok(());
         }
 
-        let network =
-            NetworkClient::new(self.client.clone(), self.path.clone(), iface.network_id);
+        let network = NetworkClient::new(self.client.clone(), self.path.clone(), iface.network_id);
         let info = network.get().await?;
 
         if info.network_type == "bridge" && info.count == 2 && info.visibility == 0 {
