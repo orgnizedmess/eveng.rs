@@ -3,7 +3,7 @@
 use crate::interfaces::{EthernetInterface, InterfaceClient, InterfacesClient, SerialInterface};
 use crate::labs::{LabClient, LabPath};
 use crate::templates::NodeTemplate;
-use crate::utils::{WireMap, empty_string_is_none, number_from_string};
+use crate::utils::{WireMap, empty_string_is_none};
 use crate::{Client, Error, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -14,8 +14,7 @@ use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Node {
-    #[serde(deserialize_with = "number_from_string")]
-    pub config: u32,
+    pub config: StartupConfig,
 
     pub delay: u32,
 
@@ -52,7 +51,7 @@ pub struct Node {
     pub cpu: Option<u32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cpulimit: Option<u32>,
+    pub cpulimit: Option<u8>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ethernet: Option<u32>,
@@ -94,6 +93,18 @@ pub struct Node {
     pub slot2: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot3: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot4: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot5: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot6: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub serial: Option<u32>,
 }
 
@@ -128,6 +139,23 @@ pub enum NodeStatus {
     Starting = 1,
     Running = 2,
     Stopping = 3,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum StartupConfig {
+    None = 0,
+    Exported = 1,
+}
+
+impl From<u8> for StartupConfig {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => StartupConfig::None,
+            1 => StartupConfig::Exported,
+            _ => StartupConfig::None,
+        }
+    }
 }
 
 /// A client to manage nodes.
@@ -253,30 +281,31 @@ impl NodeClient {
     }
 
     /// Updates the node's details.
-    ///
-    /// If the node is running, it is stopped before editing and started again
-    /// once the edits have been made.
     pub async fn edit<T: TypedNode>(&self, params: EditNodeRequest<T>) -> Result<()> {
         self.lab().open().await?;
-        self.stop().await?;
+
+        if matches!(params.status, NodeStatus::Running) {
+            return Err(Error::Node(
+                "Cannot edit node as it is still running.".to_string(),
+            ));
+        }
 
         self.client
             .put::<(), EditNodeRequest<T>>(&format!("labs{}/nodes/{}", self.path, self.id), &params)
             .await?;
 
-        if params.status != NodeStatus::Stopped {
-            self.start().await?
-        }
-
         Ok(())
     }
 
     /// Deletes the node.
-    ///
-    /// If the node is currently running, it stops the node before deleting.
     pub async fn delete(self) -> Result<()> {
         self.lab().open().await?;
-        self.stop().await?;
+
+        if matches!(self.status().await?, NodeStatus::Running) {
+            return Err(Error::Node(
+                "Cannot delete node as it is still running.".to_string(),
+            ));
+        }
 
         self.client
             .delete::<()>(&format!("labs{}/nodes/{}", self.path, self.id))
@@ -289,11 +318,6 @@ impl NodeClient {
     pub async fn start(&self) -> Result<()> {
         self.lab().open().await?;
 
-        let status = self.status().await?;
-        if matches!(status, NodeStatus::Running | NodeStatus::Starting) {
-            return Ok(());
-        }
-
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/start", self.path, self.id))
             .await?;
@@ -305,11 +329,6 @@ impl NodeClient {
     /// Stops the node if not already stopped.
     pub async fn stop(&self) -> Result<()> {
         self.lab().open().await?;
-
-        let status = self.status().await?;
-        if matches!(status, NodeStatus::Stopped | NodeStatus::Stopping) {
-            return Ok(());
-        }
 
         self.client
             .get::<()>(&format!("labs{}/nodes/{}/stop", self.path, self.id))
@@ -362,7 +381,7 @@ impl NodeClient {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct QemuParams {
     cpu: u32,
-    cpulimit: u32,
+    cpulimit: u8,
     ethernet: u32,
     image: String,
     ram: u32,
@@ -381,6 +400,10 @@ pub struct DynamipsParams {
     ram: u32,
     slot1: String,
     slot2: String,
+    slot3: Option<String>,
+    slot4: Option<String>,
+    slot5: Option<String>,
+    slot6: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -409,7 +432,7 @@ mod private {
     pub trait Sealed {}
 }
 
-pub trait TypedNode: Serialize + DeserializeOwned + private::Sealed {
+pub trait TypedNode: Default + Serialize + DeserializeOwned + private::Sealed {
     const NODE_TYPE: NodeType;
 }
 
@@ -446,13 +469,12 @@ pub struct AddNodeRequest<T> {
     node_type: NodeType,
     template: String,
     top: u32,
-    #[serde(deserialize_with = "number_from_string")]
-    config: u32,
+    config: StartupConfig,
     delay: u32,
     icon: String,
     name: String,
 
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     params: T,
 }
 
@@ -473,7 +495,7 @@ impl<T: TypedNode> AddNodeRequest<T> {
             )));
         }
 
-        let mut defaults = template.default_map();
+        let mut defaults = template.defaults_map()?;
         defaults.insert("type".to_string(), serde_json::json!(template.node_type));
         defaults.insert("template".to_string(), serde_json::json!(template.name));
         defaults.insert("left".to_string(), serde_json::json!(0));
@@ -494,7 +516,7 @@ impl<T: TypedNode> AddNodeRequest<T> {
         self
     }
 
-    pub fn config(mut self, config: u32) -> Self {
+    pub fn config(mut self, config: StartupConfig) -> Self {
         self.config = config;
         self
     }
@@ -520,7 +542,7 @@ impl AddNodeRequest<QemuParams> {
         self
     }
 
-    pub fn cpulimit(mut self, cpulimit: u32) -> Self {
+    pub fn cpulimit(mut self, cpulimit: u8) -> Self {
         self.params.cpulimit = cpulimit;
         self
     }
@@ -590,6 +612,26 @@ impl AddNodeRequest<DynamipsParams> {
         self.params.slot2 = slot2.into();
         self
     }
+
+    pub fn slot3(mut self, slot3: impl Into<String>) -> Self {
+        self.params.slot3 = Some(slot3.into());
+        self
+    }
+
+    pub fn slot4(mut self, slot4: impl Into<String>) -> Self {
+        self.params.slot4 = Some(slot4.into());
+        self
+    }
+
+    pub fn slot5(mut self, slot5: impl Into<String>) -> Self {
+        self.params.slot5 = Some(slot5.into());
+        self
+    }
+
+    pub fn slot6(mut self, slot6: impl Into<String>) -> Self {
+        self.params.slot6 = Some(slot6.into());
+        self
+    }
 }
 
 impl AddNodeRequest<IolParams> {
@@ -644,7 +686,7 @@ impl AddNodeRequest<VpcsParams> {
 pub struct EditNodeRequest<T> {
     left: u32,
     top: u32,
-    config: u32,
+    config: StartupConfig,
     delay: u32,
     icon: String,
     name: String,
@@ -654,12 +696,12 @@ pub struct EditNodeRequest<T> {
     status: NodeStatus,
     template: String,
 
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     params: T,
 }
 
 impl<T: TypedNode> EditNodeRequest<T> {
-    fn from_node(node: &Node) -> Result<Self> {
+    pub(crate) fn from_node(node: &Node) -> Result<Self> {
         if node.node_type != T::NODE_TYPE {
             return Err(Error::Node(format!(
                 "Incorrect type, expected '{}', got '{}'",
@@ -683,7 +725,7 @@ impl<T: TypedNode> EditNodeRequest<T> {
         self
     }
 
-    pub fn config(mut self, config: u32) -> Self {
+    pub fn config(mut self, config: StartupConfig) -> Self {
         self.config = config;
         self
     }
@@ -709,7 +751,7 @@ impl EditNodeRequest<QemuParams> {
         self
     }
 
-    pub fn cpulimit(mut self, cpulimit: u32) -> Self {
+    pub fn cpulimit(mut self, cpulimit: u8) -> Self {
         self.params.cpulimit = cpulimit;
         self
     }
@@ -777,6 +819,26 @@ impl EditNodeRequest<DynamipsParams> {
 
     pub fn slot2(mut self, slot2: impl Into<String>) -> Self {
         self.params.slot2 = slot2.into();
+        self
+    }
+
+    pub fn slot3(mut self, slot3: impl Into<String>) -> Self {
+        self.params.slot3 = Some(slot3.into());
+        self
+    }
+
+    pub fn slot4(mut self, slot4: impl Into<String>) -> Self {
+        self.params.slot4 = Some(slot4.into());
+        self
+    }
+
+    pub fn slot5(mut self, slot5: impl Into<String>) -> Self {
+        self.params.slot5 = Some(slot5.into());
+        self
+    }
+
+    pub fn slot6(mut self, slot6: impl Into<String>) -> Self {
+        self.params.slot6 = Some(slot6.into());
         self
     }
 }

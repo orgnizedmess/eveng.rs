@@ -154,10 +154,6 @@ impl Client {
         UserClient::new(self.clone(), username)
     }
 
-    pub fn node_template(&self, name: impl Into<String>) -> TemplateClient {
-        TemplateClient::new(self.clone(), name)
-    }
-
     async fn request<T, B>(
         &self,
         method: Method,

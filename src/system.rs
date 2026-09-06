@@ -1,5 +1,6 @@
 //! Client and models for system-level information about the EVE-NG instance.
 
+use crate::templates::{TemplateClient, TemplatesClient};
 use crate::utils::WireMap;
 use crate::{Client, Result};
 use serde::{Deserialize, Serialize};
@@ -92,5 +93,15 @@ impl SystemClient {
             .await?
             .into_data()?
             .0)
+    }
+
+    /// Returns a client to manage node templates.
+    pub fn node_templates(&self) -> TemplatesClient {
+        TemplatesClient::new(self.client.clone())
+    }
+
+    /// Returns a client to manage a single node template.
+    pub fn node_template(&self, name: impl Into<String>) -> TemplateClient {
+        TemplateClient::new(self.client.clone(), name)
     }
 }
