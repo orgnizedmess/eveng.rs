@@ -4,7 +4,7 @@ use crate::labs::{LabClient, LabPath};
 use crate::networks::{AddNetworkRequest, EditNetworkRequest};
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::{NodeClient, NodeType};
-use crate::utils::map_or_seq;
+use crate::utils::{map_or_seq, private::Sealed};
 use crate::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -82,18 +82,14 @@ impl std::fmt::Display for InterfaceType {
     }
 }
 
-mod private {
-    pub trait Sealed {}
-}
-
-pub trait TypedInterface: private::Sealed + Sized {
+pub trait TypedInterface: Sealed + Sized {
     const INTERFACE_TYPE: InterfaceType;
 
     fn take(ifaces: Interfaces, id: u32) -> Option<Self>;
     fn is_connected(&self) -> bool;
 }
 
-impl private::Sealed for EthernetInterface {}
+impl Sealed for EthernetInterface {}
 impl TypedInterface for EthernetInterface {
     const INTERFACE_TYPE: InterfaceType = InterfaceType::Ethernet;
 
@@ -106,7 +102,7 @@ impl TypedInterface for EthernetInterface {
     }
 }
 
-impl private::Sealed for SerialInterface {}
+impl Sealed for SerialInterface {}
 impl TypedInterface for SerialInterface {
     const INTERFACE_TYPE: InterfaceType = InterfaceType::Serial;
 

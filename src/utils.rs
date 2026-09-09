@@ -7,6 +7,10 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
+pub(crate) mod private {
+    pub trait Sealed {}
+}
+
 pub(crate) fn number_from_string<'de, T, D>(deserializer: D) -> std::result::Result<T, D::Error>
 where
     D: Deserializer<'de>,

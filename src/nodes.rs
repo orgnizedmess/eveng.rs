@@ -3,7 +3,7 @@
 use crate::interfaces::{EthernetInterface, InterfaceClient, InterfacesClient, SerialInterface};
 use crate::labs::{LabClient, LabPath};
 use crate::templates::NodeTemplate;
-use crate::utils::{WireMap, empty_string_is_none};
+use crate::utils::{WireMap, empty_string_is_none, private::Sealed};
 use crate::{Client, Error, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -428,35 +428,31 @@ pub struct VpcsParams {
     ethernet: Option<u32>,
 }
 
-mod private {
-    pub trait Sealed {}
-}
-
-pub trait TypedNode: Default + Serialize + DeserializeOwned + private::Sealed {
+pub trait TypedNode: Default + Serialize + DeserializeOwned + Sealed {
     const NODE_TYPE: NodeType;
 }
 
-impl private::Sealed for QemuParams {}
+impl Sealed for QemuParams {}
 impl TypedNode for QemuParams {
     const NODE_TYPE: NodeType = NodeType::Qemu;
 }
 
-impl private::Sealed for DockerParams {}
+impl Sealed for DockerParams {}
 impl TypedNode for DockerParams {
     const NODE_TYPE: NodeType = NodeType::Docker;
 }
 
-impl private::Sealed for DynamipsParams {}
+impl Sealed for DynamipsParams {}
 impl TypedNode for DynamipsParams {
     const NODE_TYPE: NodeType = NodeType::Dynamips;
 }
 
-impl private::Sealed for VpcsParams {}
+impl Sealed for VpcsParams {}
 impl TypedNode for VpcsParams {
     const NODE_TYPE: NodeType = NodeType::Vpcs;
 }
 
-impl private::Sealed for IolParams {}
+impl Sealed for IolParams {}
 impl TypedNode for IolParams {
     const NODE_TYPE: NodeType = NodeType::Iol;
 }
