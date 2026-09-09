@@ -1,32 +1,37 @@
-//! Clients and models for managing networks within a lab.
+//! Types and clients for managing networks within a lab.
 
 use crate::labs::LabPath;
 use crate::utils::{WireMap, number_from_string};
 use crate::{Client, Result};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Type to describe a network in a lab.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Network {
     /// Number of connected nodes.
     pub count: u32,
-
+    /// Icon used to display the network in the lab.
     pub icon: String,
+    /// Left margin of the node.
     pub left: u32,
+    /// Name used to display the network in the lab.
     pub name: String,
+    /// Top margin of the network.
     pub top: u32,
-
+    /// Type of the network.
     #[serde(rename = "type")]
     pub network_type: String,
-
+    /// Visbility of the network in the lab.
     #[serde(deserialize_with = "number_from_string")]
     pub visibility: u8,
-
-    // appears in /networks, not in /networks/{id}
+    /// Identifier of the network.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
 }
 
+/// A client to manage networks.
 pub struct NetworksClient {
     client: Client,
     path: LabPath,
@@ -63,11 +68,12 @@ impl NetworksClient {
         Ok(self.network(resp.id))
     }
 
-    pub fn network(&self, id: u32) -> NetworkClient {
+    fn network(&self, id: u32) -> NetworkClient {
         NetworkClient::new(self.client.clone(), self.path.clone(), id)
     }
 }
 
+/// A client to manage a single network.
 pub struct NetworkClient {
     pub(crate) client: Client,
     pub(crate) path: LabPath,
@@ -121,91 +127,107 @@ impl NetworkClient {
     }
 }
 
+/// Request to add a network.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AddNetworkRequest {
+    left: u32,
     #[serde(rename = "type")]
     network_type: String,
+    top: u32,
     visibility: u8,
     #[serde(skip_serializing_if = "Option::is_none")]
     icon: Option<String>,
-    // API shows percentage values but regular ints works on my instance
-    #[serde(skip_serializing_if = "Option::is_none")]
-    left: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
-    // API shows percentage values but regular ints works on my instance
-    #[serde(skip_serializing_if = "Option::is_none")]
-    top: Option<u32>,
 }
 
 impl AddNetworkRequest {
+    /// Creates a request to add a network.
     pub fn new(network_type: impl Into<String>) -> Self {
         Self {
+            left: 0,
             network_type: network_type.into(),
+            top: 0,
             visibility: 1,
-            ..Default::default()
+            ..Self::default()
         }
     }
 
+    /// Icon used to display the network in the lab.
+    pub fn icon(mut self, icon: impl Into<String>) -> Self {
+        self.icon = Some(icon.into());
+        self
+    }
+
+    /// Name used to display the network in the lab.
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Position of the node in the lab.
+    pub fn position(mut self, left: u32, top: u32) -> Self {
+        self.left = left;
+        self.top = top;
+        self
+    }
+
+    /// Visiblity of the network in the lab.
     pub fn visibility(mut self, visibility: u8) -> Self {
         self.visibility = visibility;
         self
     }
-
-    pub fn icon(mut self, icon: impl Into<String>) -> Self {
-        self.icon = Some(icon.into());
-        self
-    }
-
-    pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn position(mut self, left: u32, top: u32) -> Self {
-        self.left = Some(left);
-        self.top = Some(top);
-        self
-    }
 }
 
+/// Request to edit a network.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct EditNetworkRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    name: Option<String>,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub network_type: Option<String>,
+    network_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub icon: Option<String>,
+    icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub left: Option<u32>,
+    left: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<u32>,
+    top: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub visibility: Option<u8>,
+    visibility: Option<u8>,
 }
 
 impl EditNetworkRequest {
+    /// Creates a request to edit a network.
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 
+    /// Icon used to display the network in the lab.
     pub fn icon(mut self, icon: impl Into<String>) -> Self {
         self.icon = Some(icon.into());
         self
     }
 
+    /// Name used to display the network in the lab.
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
+    /// Type of the network.
+    pub fn network_type(mut self, network_type: impl Into<String>) -> Self {
+        self.network_type = Some(network_type.into());
+        self
+    }
+
+    /// Position of the node in the lab.
     pub fn position(mut self, left: u32, top: u32) -> Self {
         self.left = Some(left);
         self.top = Some(top);
         self
     }
 
+    /// Visiblity of the network in the lab.
     pub fn visibility(mut self, visibility: u8) -> Self {
         self.visibility = Some(visibility);
         self
