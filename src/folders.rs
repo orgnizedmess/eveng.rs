@@ -1,56 +1,41 @@
-//! Clients and models for managing folders on the EVE-NG instance.
+//! Types and clients for managing folders on the EVE-NG instance.
 
 use crate::labs::{LabClient, LabsClient};
 use crate::utils::validate_name;
 use crate::{Client, Error, Result};
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// A client for managing folders.
-pub struct FoldersClient {
-    client: Client,
-}
-
-impl FoldersClient {
-    pub(crate) fn new(client: Client) -> Self {
-        Self { client }
-    }
-
-    /// Creates a new folder.
-    pub async fn add(&self, params: &FolderEntry) -> Result<FolderClient> {
-        let path = FolderPath::from_parts(&params.path, &params.name)?;
-
-        self.client
-            .post::<(), FolderEntry>("folders", params)
-            .await?;
-
-        Ok(FolderClient {
-            client: self.client.clone(),
-            path,
-        })
-    }
-}
-
+/// Type to describe a folder listing.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Folder {
+    /// List of folders within the folder.
     pub folders: Vec<FolderEntry>,
+    /// List of labs within the folder.
     pub labs: Vec<LabEntry>,
 }
 
+/// Type to describe a folder entry in a folder listing.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FolderEntry {
+    /// Name of the folder.
     pub name: String,
+    /// Absolute path of the folder.
     pub path: String,
 }
 
+/// Type to describe a lab entry in a folder listing.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LabEntry {
+    /// Name of the lab file without the path, same as [`Lab::filename`].
     #[serde(rename = "file")]
     pub filename: String,
-    /// Modification time
+    /// Modification time of the lab.
     pub mtime: String,
+    /// Absolute path of the lab.
     pub path: String,
-    /// Modification time as a unix timestamp
+    /// [`Self::mtime`] as a UNIX timestamp.
     pub umtime: u64,
 }
 
@@ -124,16 +109,15 @@ impl FolderPath {
         self.0.rsplit("/").next().unwrap()
     }
 
-    // Only leaf needs to be validated
     pub(crate) fn rename(&self, name: &str) -> Result<Self> {
+        // Only leaf needs to be validated
         Self::validate_segment(name)?;
         Ok(Self::from_str(&Self::join(self.parent(), name)))
     }
 
-    // Only parent needs to be validated
-    pub(crate) fn move_to(&self, path: &str) -> Result<Self> {
-        Self::validate(path)?;
-        Ok(Self::from_str(&Self::join(path, self.leaf())))
+    pub(crate) fn move_to(&self, path: &FolderPath) -> Self {
+        // Both parts are already validated
+        Self::from_str(&Self::join(path.as_str(), self.leaf()))
     }
 
     fn join(parent: &str, leaf: &str) -> String {
@@ -144,18 +128,18 @@ impl FolderPath {
 /// A client for managing a single folder.
 pub struct FolderClient {
     client: Client,
-    path: FolderPath,
+    pub(crate) path: FolderPath,
 }
 
 impl FolderClient {
-    pub(crate) fn new(client: Client, path: &str) -> Result<Self> {
+    pub(crate) fn new(client: Client, path: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
             client,
-            path: FolderPath::new(path)?,
+            path: FolderPath::new(path.as_ref())?,
         })
     }
 
-    // Lists the contents of the folder.
+    /// Lists the contents of the folder.
     pub async fn list(&self) -> Result<Folder> {
         self.client
             .get(&format!("folders{}", self.path))
@@ -163,7 +147,27 @@ impl FolderClient {
             .into_data()
     }
 
-    // Renames the folder.
+    /// Add a folder in the current folder.
+    pub async fn add(&self, name: impl Into<String>) -> Result<FolderClient> {
+        let name = name.into();
+        let path = FolderPath::from_parts(self.path.as_str(), &name)?;
+
+        let params = FolderEntry {
+            name,
+            path: self.path.as_str().into(),
+        };
+
+        self.client
+            .post::<(), FolderEntry>("folders", &params)
+            .await?;
+
+        Ok(FolderClient {
+            client: self.client.clone(),
+            path,
+        })
+    }
+
+    /// Renames the folder.
     pub async fn rename(self, name: impl AsRef<str>) -> Result<FolderClient> {
         let name = name.as_ref();
 
@@ -177,10 +181,8 @@ impl FolderClient {
     }
 
     /// Moves the folder to the specified path.
-    pub async fn move_to(self, path: impl AsRef<str>) -> Result<FolderClient> {
-        let path = path.as_ref();
-
-        let new_path = self.path.move_to(path)?;
+    pub async fn move_to(self, folder: &FolderClient) -> Result<FolderClient> {
+        let new_path = self.path.move_to(&folder.path);
         self.edit(new_path.as_str()).await?;
 
         Ok(FolderClient {
@@ -190,7 +192,7 @@ impl FolderClient {
     }
 
     async fn edit(&self, path: &str) -> Result<()> {
-        let params = serde_json::json!({path: path.to_string()});
+        let params = serde_json::json!({"path": path});
 
         self.client
             .put::<(), serde_json::Value>(&format!("folders{}", self.path), &params)
@@ -213,7 +215,7 @@ impl FolderClient {
     }
 
     /// Returns a client for managing a single lab.
-    pub fn lab(&self, name: &str) -> Result<LabClient> {
+    pub fn lab(&self, name: impl AsRef<str>) -> Result<LabClient> {
         LabClient::new(self.client.clone(), self.path.clone(), name)
     }
 }
@@ -221,6 +223,7 @@ impl FolderClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn valid_folder_path() -> Result<()> {
         let path = FolderPath::new("/New Folder")?;
@@ -255,7 +258,8 @@ mod tests {
     #[test]
     fn folder_move() -> Result<()> {
         let path = FolderPath::new("/New Folder")?;
-        let new_path = path.move_to("/Test Folder")?;
+        let new_folder = FolderPath::new("/Test Folder")?;
+        let new_path = path.move_to(&new_folder);
 
         assert_eq!(new_path.as_str(), "/Test Folder/New Folder");
         assert_eq!(new_path.parent(), "/Test Folder");

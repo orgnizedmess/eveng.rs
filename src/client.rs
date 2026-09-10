@@ -1,4 +1,4 @@
-use crate::folders::{FolderClient, FoldersClient};
+use crate::folders::FolderClient;
 use crate::system::SystemClient;
 use crate::users::{UserClient, UserName, UsersClient};
 use crate::utils::number_from_string;
@@ -134,13 +134,8 @@ impl Client {
         SystemClient::new(self.clone())
     }
 
-    /// Returns a client to manage folders.
-    pub fn folders(&self) -> FoldersClient {
-        FoldersClient::new(self.clone())
-    }
-
     /// Returns a client to manage a single folder.
-    pub fn folder(&self, path: &str) -> Result<FolderClient> {
+    pub fn folder(&self, path: impl AsRef<str>) -> Result<FolderClient> {
         FolderClient::new(self.clone(), path)
     }
 
