@@ -28,14 +28,14 @@ pub struct FolderEntry {
 /// Type to describe a lab entry in a folder listing.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LabEntry {
-    /// Name of the lab file without the path, same as [`Lab::filename`].
+    /// Name of the lab file without the path (eg: `Test.unl`).
     #[serde(rename = "file")]
     pub filename: String,
     /// Modification time of the lab.
     pub mtime: String,
-    /// Absolute path of the lab.
+    /// Absolute path of the lab (eg: `/Test.unl`).
     pub path: String,
-    /// [`Self::mtime`] as a UNIX timestamp.
+    /// Modification time of the lab, as a UNIX timestamp.
     pub umtime: u64,
 }
 

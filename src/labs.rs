@@ -1,49 +1,47 @@
-//! Clients and models for managing labs within a folder.
+//! Types and clients for managing labs within a folder.
 
-use crate::folders::FolderPath;
+use crate::folders::{FolderClient, FolderPath};
 use crate::interfaces::InterfaceType;
 use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::NodeStatus;
 use crate::nodes::{NodeClient, NodesClient};
 use crate::system::SystemClient;
-use crate::utils::validate_name;
-use crate::utils::{empty_string_is_none, map_or_seq, number_from_string};
+use crate::utils::{empty_string_is_none, map_or_seq, number_from_string, validate_name};
 use crate::{Client, Error, Result};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// Type to describe a lab.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Lab {
-    /// Name of the lab file without the path.
+    /// Name of the lab file without the path (eg: `Test.unl`)
     pub filename: String,
-
+    /// UUID of the lab, generated automatically.
     pub id: String,
-
+    /// Lock status of the lab.
     pub lock: u8,
-
-    /// Name of the lab file, without the path and extension.
+    /// Name of the lab file without the path and extension.
     pub name: String,
-
-    /// Value in seconds used for the “Configuration Export” and “Boot from
-    /// exported configs” operations
+    /// Seconds to boot nodes from a startup config.
     pub scripttimeout: u32,
-
+    /// Version number of the lab.
     #[serde(deserialize_with = "number_from_string")]
     pub version: u32,
-
+    /// Name of the author of the lab.
     #[serde(
         deserialize_with = "empty_string_is_none",
         skip_serializing_if = "Option::is_none"
     )]
     pub author: Option<String>,
-
+    /// Usage text of the lab.
     #[serde(
         deserialize_with = "empty_string_is_none",
         skip_serializing_if = "Option::is_none"
     )]
     pub body: Option<String>,
-
+    /// Description of the lab.
     #[serde(
         deserialize_with = "empty_string_is_none",
         skip_serializing_if = "Option::is_none"
@@ -51,22 +49,33 @@ pub struct Lab {
     pub description: Option<String>,
 }
 
+/// Type to describe a lab's topology.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TopologyEntry {
+    /// Destination device type + ID (eg: `network1`).
     pub destination: String,
+    /// Destination interface name.
     pub destination_label: String,
+    /// Destination device type.
     pub destination_type: String,
+    /// Source device type + ID (eg: `node1`).
     pub source: String,
+    /// Source interface name.
     pub source_label: String,
+    /// Source device type.
     pub source_type: String,
+    /// Type of connection.
     #[serde(rename = "type")]
     pub connection_type: InterfaceType,
 }
 
+/// Type to describe all remote endpoints for ethernet and serial interfaces.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Links {
+    /// List of Ethernet endpoints.
     #[serde(deserialize_with = "map_or_seq")]
     pub ethernet: HashMap<i32, String>,
+    /// List of Serial endpoints.
     #[serde(deserialize_with = "map_or_seq")]
     pub serial: HashMap<i32, HashMap<i32, String>>,
 }
@@ -280,7 +289,7 @@ impl LabClient {
             .into_data()
     }
 
-    /// Lists all remote endpoints for both ethernet and serial interfaces in
+    /// Lists all remote endpoints for ethernet and serial interfaces in
     /// the lab.
     pub async fn links(&self) -> Result<Links> {
         self.client
@@ -290,15 +299,12 @@ impl LabClient {
     }
 
     /// Opens the lab if it isn't already open.
-    ///
-    /// If another lab is open, then it attempts to close that lab before
-    /// opening this lab.
     pub(crate) async fn open(&self) -> Result<()> {
         match self.labs().current().await? {
             Some(lab) if lab.path == self.path => return Ok(()),
             Some(lab) => {
                 return Err(Error::Lab(format!(
-                    "Cannot open lab '{}' because lab '{}' is currently open.",
+                    "Cannot open lab '{}' because '{}' is currently open.",
                     self.path, lab.path
                 )));
             }
@@ -360,7 +366,7 @@ impl LabClient {
 }
 
 /// Request for adding a lab.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct AddLabRequest {
     name: String,
     path: String,
@@ -386,43 +392,45 @@ impl AddLabRequest {
 
         Ok(Self {
             name,
-            scripttimeout: Some(600),
+            scripttimeout: Some(300),
             version: Some(1),
             ..Default::default()
         })
     }
 
-    /// Sets the name of the lab's author.
+    /// Sets the name of the author of the lab.
     pub fn author(mut self, author: impl Into<String>) -> Self {
         self.author = Some(author.into());
         self
     }
 
-    /// Sets the lab's usage text.
+    /// Sets the usage text of the lab.
     pub fn body(mut self, body: impl Into<String>) -> Self {
         self.body = Some(body.into());
         self
     }
 
-    /// Sets the lab's description.
+    /// Sets the description of the lab.
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 
-    /// Sets the lab's version.
+    /// Sets the version number of the lab.
     pub fn version(mut self, version: u32) -> Self {
         self.version = Some(version);
         self
     }
 
-    /// Sets the lab's script timeout.
-    ///
-    /// The script timeout is the value in seconds used for the “Configuration
-    /// Export” and “Boot from exported configs” operations.
-    pub fn scripttimeout(mut self, scripttimeout: u32) -> Self {
+    /// Sets the seconds to boot nodes from a startup config.
+    pub fn scripttimeout(mut self, scripttimeout: u32) -> Result<Self> {
+        if scripttimeout < 300 {
+            return Err(Error::Lab(
+                "Minimum script timeout is 300 seconds".to_string(),
+            ));
+        }
         self.scripttimeout = Some(scripttimeout);
-        self
+        Ok(self)
     }
 
     pub(crate) fn path(mut self, path: impl Into<String>) -> Self {
@@ -431,6 +439,7 @@ impl AddLabRequest {
     }
 }
 
+/// Request for editing a lab.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct EditLabRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -450,55 +459,59 @@ pub struct EditLabRequest {
 }
 
 impl EditLabRequest {
+    /// Creates a request for editing a lab.
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 
-    /// Sets the name of the lab's author.
+    /// Sets the name of author of the lab.
     pub fn author(mut self, author: impl Into<String>) -> Self {
         self.author = Some(author.into());
         self
     }
 
-    /// Clears the name of the lab's author.
+    /// Clears the name of the author of the lab.
     pub fn clear_author(mut self) -> Self {
         self.author = Some(String::new());
         self
     }
 
-    /// Sets the lab's usage text.
+    /// Sets the usage text of the lab.
     pub fn body(mut self, body: impl Into<String>) -> Self {
         self.body = Some(body.into());
         self
     }
 
-    /// Clears the lab's usage text.
+    /// Clears the usage text of the lab.
     pub fn clear_body(mut self) -> Self {
         self.body = Some(String::new());
         self
     }
 
-    /// Sets the lab's description.
+    /// Sets the description of the lab.
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 
-    /// Clears the lab's description.
+    /// Clears the description of the lab.
     pub fn clear_description(mut self) -> Self {
         self.description = Some(String::new());
         self
     }
 
-    /// Sets the lab's version.
-    pub fn scripttimeout(mut self, scripttimeout: u32) -> Self {
+    /// Sets the seconds to boot nodes from a startup config.
+    pub fn scripttimeout(mut self, scripttimeout: u32) -> Result<Self> {
+        if scripttimeout < 300 {
+            return Err(Error::Lab(
+                "Minimum script timeout is 300 seconds".to_string(),
+            ));
+        }
         self.scripttimeout = Some(scripttimeout);
-        self
+        Ok(self)
     }
 
-    /// Sets the lab's script timeout.
+    /// Sets the version number of the lab.
     pub fn version(mut self, version: u32) -> Self {
         self.version = Some(version);
         self
