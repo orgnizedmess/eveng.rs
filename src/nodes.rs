@@ -1,6 +1,6 @@
 //! Types and clients for managing nodes within a lab.
 
-use crate::interfaces::{EthernetInterface, InterfaceClient, InterfacesClient, SerialInterface};
+use crate::interfaces::{Ethernet, InterfaceClient, InterfacesClient, Serial};
 use crate::labs::{LabClient, LabPath};
 use crate::templates::NodeTemplate;
 use crate::utils::{WireMap, empty_string_is_none, private::Sealed};
@@ -372,12 +372,12 @@ impl NodeClient {
     }
 
     /// Returns a client to manage an ethernet interface.
-    pub fn ethernet(&self, id: u32) -> InterfaceClient<EthernetInterface> {
+    pub fn ethernet(&self, id: u32) -> InterfaceClient<Ethernet> {
         InterfaceClient::ethernet(self.client.clone(), self.path.clone(), self.id, id)
     }
 
     /// Returns a client to manage a serial interface.
-    pub fn serial(&self, id: u32) -> InterfaceClient<SerialInterface> {
+    pub fn serial(&self, id: u32) -> InterfaceClient<Serial> {
         InterfaceClient::serial(self.client.clone(), self.path.clone(), self.id, id)
     }
 }

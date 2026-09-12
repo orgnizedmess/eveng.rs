@@ -6,32 +6,49 @@ use crate::networks::{NetworkClient, NetworksClient};
 use crate::nodes::{NodeClient, NodeType};
 use crate::utils::{map_or_seq, private::Sealed};
 use crate::{Client, Error, Result};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+/// Type to describe an Ethernet interface.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EthernetInterface {
+pub struct Ethernet {
+    /// Display name of the interface.
     pub name: String,
+    /// ID of the network the interface is connected to. Set to `0` if not
+    /// connected.
     pub network_id: u32,
 }
 
+/// Type to describe a Serial interface.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SerialInterface {
+pub struct Serial {
+    /// Display name of the interface.
     pub name: String,
+    /// ID of the node the interface is connected to. Set to `0` if not
+    /// connected.
     pub remote_id: u32,
+    /// ID of the connected node's interface. Set to `0` if not
+    /// connected.
     pub remote_if: i32,
+    /// Name of the connected node's interface. Empty if not connected.
     pub remote_if_name: String,
 }
 
+/// Type to describe the list of interfaces of a node.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Interfaces {
+    /// List of ethernet interfaces.
     #[serde(deserialize_with = "map_or_seq")]
-    pub ethernet: HashMap<u32, EthernetInterface>,
+    pub ethernet: HashMap<u32, Ethernet>,
+    /// ID of the node.
     #[serde(rename = "id")]
     pub node_id: u32,
+    /// List of serial interfaces.
     #[serde(deserialize_with = "map_or_seq")]
-    pub serial: HashMap<u32, SerialInterface>,
+    pub serial: HashMap<u32, Serial>,
+    /// Type of the node.
     #[serde(rename = "sort")]
     pub node_type: NodeType,
 }
@@ -64,6 +81,7 @@ impl InterfacesClient {
     }
 }
 
+/// Type of the interface.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum InterfaceType {
@@ -82,15 +100,19 @@ impl std::fmt::Display for InterfaceType {
     }
 }
 
+/// Trait that binds static interface types to [`InterfaceType`].
 pub trait TypedInterface: Sealed + Sized {
+    /// Type of the interface.
     const INTERFACE_TYPE: InterfaceType;
 
+    /// Returns an interface from a list of interfaces.
     fn take(ifaces: Interfaces, id: u32) -> Option<Self>;
+    /// Checks if the interface is connected to another node or network.
     fn is_connected(&self) -> bool;
 }
 
-impl Sealed for EthernetInterface {}
-impl TypedInterface for EthernetInterface {
+impl Sealed for Ethernet {}
+impl TypedInterface for Ethernet {
     const INTERFACE_TYPE: InterfaceType = InterfaceType::Ethernet;
 
     fn take(mut ifaces: Interfaces, id: u32) -> Option<Self> {
@@ -102,8 +124,8 @@ impl TypedInterface for EthernetInterface {
     }
 }
 
-impl Sealed for SerialInterface {}
-impl TypedInterface for SerialInterface {
+impl Sealed for Serial {}
+impl TypedInterface for Serial {
     const INTERFACE_TYPE: InterfaceType = InterfaceType::Serial;
 
     fn take(mut ifaces: Interfaces, id: u32) -> Option<Self> {
@@ -135,7 +157,7 @@ impl<T: TypedInterface> InterfaceClient<T> {
         }
     }
 
-    pub fn interfaces(&self) -> InterfacesClient {
+    fn interfaces(&self) -> InterfacesClient {
         InterfacesClient::new(self.client.clone(), self.path.clone(), self.node_id)
     }
 
@@ -143,16 +165,16 @@ impl<T: TypedInterface> InterfaceClient<T> {
         LabClient::from_path(self.client.clone(), self.path.clone())
     }
 
+    /// Gets the interface's details.
     pub async fn get(&self) -> Result<T> {
         let ifaces = self.interfaces().list().await?;
 
-        T::take(ifaces, self.id).ok_or(Error::Interface(format!(
-            "{} Interface '{}' not found",
-            T::INTERFACE_TYPE,
-            self.id
-        )))
+        T::take(ifaces, self.id).ok_or(Error::Interface(
+            "Cannot find interface for the selected node.".to_string(),
+        ))
     }
 
+    /// Checks if the interface is connected to another node or network.
     pub async fn is_connected(&self) -> Result<bool> {
         Ok(self.get().await?.is_connected())
     }
@@ -205,24 +227,28 @@ impl<T: TypedInterface> InterfaceClient<T> {
     }
 }
 
-impl InterfaceClient<EthernetInterface> {
+impl InterfaceClient<Ethernet> {
     pub(crate) fn ethernet(client: Client, path: LabPath, node_id: u32, id: u32) -> Self {
         Self::new(client, path, node_id, id)
     }
 
-    /// Creates a point-to-point connection between ethernet interfaces of two nodes.
-    pub async fn connect_to_node(&self, dest: &InterfaceClient<EthernetInterface>) -> Result<()> {
+    /// Creates a point-to-point connection between ethernet interfaces of two
+    /// nodes.
+    pub async fn connect_to_node(&self, dest: &InterfaceClient<Ethernet>) -> Result<()> {
         self.ensure_connectable(dest).await?;
 
         let src = NodeClient::new(self.client.clone(), self.path.clone(), self.node_id)
             .get()
             .await?;
 
+        let req =
+            AddNetworkRequest::new("bridge").name(format!("Net-{}iface{}", src.name, self.id));
         let bridge = NetworksClient::new(self.client.clone(), self.path.clone())
-            .add(AddNetworkRequest::new("bridge").name(format!("Net-{}iface{}", src.name, self.id)))
+            .add(&req)
             .await?;
 
         self.connect(bridge.id.to_string()).await?;
+
         if let Err(e) = dest.connect(bridge.id.to_string()).await {
             bridge.delete().await?;
             return Err(e);
@@ -230,7 +256,7 @@ impl InterfaceClient<EthernetInterface> {
 
         // Making the bridge invisible during creation causes errors,
         // hence it requires a separate request
-        bridge.edit(EditNetworkRequest::new().visibility(0)).await
+        bridge.edit(&EditNetworkRequest::new().visibility(0)).await
     }
 
     /// Creates a connection between a node and a network.
@@ -275,13 +301,14 @@ impl InterfaceClient<EthernetInterface> {
     }
 }
 
-impl InterfaceClient<SerialInterface> {
+impl InterfaceClient<Serial> {
     pub(crate) fn serial(client: Client, path: LabPath, node_id: u32, id: u32) -> Self {
         Self::new(client, path, node_id, id)
     }
 
-    /// Creates a point-to-point link between serial interfaces of two nodes.
-    pub async fn connect_to_node(&self, dest: &InterfaceClient<SerialInterface>) -> Result<()> {
+    /// Creates a point-to-point connection between serial interfaces
+    /// of two nodes.
+    pub async fn connect_to_node(&self, dest: &InterfaceClient<Serial>) -> Result<()> {
         self.ensure_connectable(dest).await?;
 
         let remote_id = format!("{}:{}", dest.node_id, dest.id);
