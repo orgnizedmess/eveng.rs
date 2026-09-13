@@ -2,54 +2,49 @@
 
 use crate::utils::{WireMap, empty_string_is_none, validate_name};
 use crate::{Client, Error, Result};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Type to describe a user.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct User {
-    /// Expiration date as a UNIX timestamp or `-1` for no expiry.
+    /// Expiration date as a UNIX timestamp, or `-1` if the account never
+    /// expires.
     pub expiration: i64,
-
     /// A value representing a user profile. It is assigned automatically
     /// and unique for each user.
     pub pod: i8,
-
+    /// Role of the user.
     pub role: String,
-
-    /// Letters, digits and `-`/`_` only.
+    /// Username of the user.
     pub username: String,
-
-    /// The user's email address.
+    /// Email address of the user.
     #[serde(
         deserialize_with = "empty_string_is_none",
         skip_serializing_if = "Option::is_none"
     )]
     pub email: Option<String>,
-
-    /// Current folder.
+    /// Path of the folder the user last viewed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
-
-    /// Last session IP.
+    /// IP address the user last logged in from.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ip: Option<String>,
-
-    /// Current lab.
+    /// Path of the lab currently open for the user.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lab: Option<String>,
-
-    /// The user's full name.
+    /// Full name of the user.
     #[serde(
         deserialize_with = "empty_string_is_none",
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<String>,
-
-    /// Pod expiration date as a UNIX timestamp or `-1` for no expiry.
+    /// Pod expiration date as a UNIX timestamp, or `-1` if the pod never
+    /// expires.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pexpiration: Option<i64>,
-
-    /// Last session time as a UNIX timestamp.
+    /// UNIX timestamp of the user's last login.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<u64>,
 }
@@ -82,7 +77,7 @@ impl UsersClient {
         self.user(&params.username)
     }
 
-    pub fn user(&self, username: impl Into<String>) -> Result<UserClient> {
+    fn user(&self, username: impl Into<String>) -> Result<UserClient> {
         UserClient::new(self.client.clone(), username)
     }
 }
@@ -170,39 +165,55 @@ pub struct AddUserRequest {
 impl AddUserRequest {
     /// Creates a new request for adding a user.
     ///
-    /// `username` must contain only letters, digits, `-`, and `_`.
-    pub fn new(
-        username: impl Into<String>,
-        password: impl Into<String>,
-        role: impl Into<String>,
-    ) -> Result<Self> {
+    /// `username` must only contain letters, digits, `-`, and `_` and
+    /// `password` cannot be empty.
+    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Result<Self> {
         let username = UserName::new(username.into())?;
+        let password = password.into();
+
+        if password.is_empty() {
+            return Err(Error::User("password cannot be empty".to_string()));
+        }
 
         Ok(Self {
             username: username.to_string(),
-            password: password.into(),
-            role: role.into(),
+            password,
             expiration: -1,
+            role: "admin".to_string(),
             ..Default::default()
         })
     }
 
-    /// Sets the user's email.
+    /// Sets the email address of the user.
     pub fn email(mut self, email: impl Into<String>) -> Self {
         self.email = Some(email.into());
         self
     }
 
-    /// Sets the date on which the user's validity expires, as a UNIX timestamp.
+    /// Sets the account's expiration date, as a UNIX timestamp.
     /// Defaults to `-1`, meaning the user never expires.
     pub fn expiration(mut self, expiration: i64) -> Self {
         self.expiration = expiration;
         self
     }
 
-    /// Sets the user's display name.
-    pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
+    /// Sets the full name of the user. Must only contain letters, digits,
+    /// spaces, `-` and `_`.
+    pub fn name(mut self, name: impl Into<String>) -> Result<Self> {
+        let name = name.into();
+        if !validate_name(&name, &['-', '_', ' ']) {
+            return Err(Error::User(format!(
+                "Invalid name '{}', must contain letters, digits, spaces, `-` and `_`.",
+                &name,
+            )));
+        }
+        self.name = Some(name);
+        Ok(self)
+    }
+
+    /// Sets the role of the user. Defaults to `admin`.
+    pub fn role(mut self, role: impl Into<String>) -> Self {
+        self.role = role.into();
         self
     }
 }
@@ -228,46 +239,41 @@ impl EditUserRequest {
         Default::default()
     }
 
-    /// Sets the user's password.
+    /// Sets the password of the user.
     pub fn password(mut self, password: impl Into<String>) -> Self {
         self.password = Some(password.into());
         self
     }
 
-    /// Sets the user's role.
+    /// Sets the role of the user.
     pub fn role(mut self, role: impl Into<String>) -> Self {
         self.role = Some(role.into());
         self
     }
 
-    /// Sets the user's email.
+    /// Sets email address of the user.
     pub fn email(mut self, email: impl Into<String>) -> Self {
         self.email = Some(email.into());
         self
     }
 
-    /// Sets the date on which the user's validity expires, as a UNIX timestamp.
+    /// Sets the account's expiration date, as a UNIX timestamp.
     pub fn expiration(mut self, expiration: i64) -> Self {
         self.expiration = Some(expiration);
         self
     }
 
-    /// Sets the user's display name.
-    pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    /// Clears the user's current full name.
-    pub fn clear_name(mut self) -> Self {
-        self.name = Some(String::new());
-        self
-    }
-
-    /// Clears the user's current email address.
-    pub fn clear_email(mut self) -> Self {
-        self.email = Some(String::new());
-        self
+    /// Sets the full name of the user.
+    pub fn name(mut self, name: impl Into<String>) -> Result<Self> {
+        let name = name.into();
+        if !validate_name(&name, &['-', '_', ' ']) {
+            return Err(Error::User(format!(
+                "Invalid name '{}', must contain letters, digits, spaces, '-' and '_'.",
+                &name,
+            )));
+        }
+        self.name = Some(name);
+        Ok(self)
     }
 }
 
