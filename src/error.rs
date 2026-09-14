@@ -1,51 +1,32 @@
 use crate::client::Response;
 
-/// result type alias using our Error type
-pub type Result<T> = std::result::Result<T, Error>;
-
-/// Main error type
+/// Main error type for the EVE-NG API.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// HTTP request error.
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
-
+    /// JSON serialization or deserialization error.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
-
-    #[error("Error while parsing a URL: {0:#?}")]
-    InvalidUrl(#[from] url::ParseError),
-
+    /// Errors originating from the EVE-NG API.
     #[error("EVE-NG API error (status {status}): {message}")]
     Api {
-        /// HTTP status code
+        /// HTTP status code.
         code: u16,
-        /// API Status message (success/unauthorized/forbidden/fail/error)
+        /// API Status message (success/unauthorized/forbidden/fail/error).
         status: String,
-        /// Error message from API
+        /// Error message from API.
         message: String,
     },
-
-    #[error("User error: {0}")]
-    User(String),
-
-    #[error("Folder error: {0}")]
-    Folder(String),
-
-    #[error("Lab error: {0}")]
-    Lab(String),
-
-    #[error("Node error: {0}")]
-    Node(String),
-
-    #[error("Interface error: {0}")]
-    Interface(String),
-
-    #[error("Expected data in response but got none")]
-    MissingData,
+    /// Client-side validation errors, before or after the request has been
+    /// made.
+    #[error("Client error: {0}")]
+    Client(String),
 }
 
 impl Error {
-    pub fn from_response(code: reqwest::StatusCode, body: String) -> Self {
+    pub(crate) fn from_response(code: reqwest::StatusCode, body: String) -> Self {
         match serde_json::from_str::<Response<()>>(&body) {
             Ok(api) => Error::Api {
                 code: api.code,

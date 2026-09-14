@@ -23,4 +23,7 @@ pub mod templates;
 pub mod users;
 
 pub use client::Client;
-pub use error::{Error, Result};
+pub use error::Error;
+
+/// Result type alias.
+pub type Result<T> = std::result::Result<T, Error>;

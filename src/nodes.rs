@@ -287,7 +287,7 @@ impl NodeClient {
         self.lab().open().await?;
 
         if matches!(params.status, NodeStatus::Running) {
-            return Err(Error::Node(
+            return Err(Error::Client(
                 "Cannot edit node as it is still running.".to_string(),
             ));
         }
@@ -304,7 +304,7 @@ impl NodeClient {
         self.lab().open().await?;
 
         if matches!(self.status().await?, NodeStatus::Running) {
-            return Err(Error::Node(
+            return Err(Error::Client(
                 "Cannot delete node as it is still running.".to_string(),
             ));
         }
@@ -489,7 +489,7 @@ pub struct AddNodeRequest<T> {
 impl<T: TypedNode> AddNodeRequest<T> {
     fn from_template(template: &NodeTemplate) -> Result<Self> {
         if template.node_type != T::NODE_TYPE {
-            return Err(Error::Node(format!(
+            return Err(Error::Client(format!(
                 "Incorrect type, expected '{}', got '{}'",
                 template.node_type,
                 T::NODE_TYPE
@@ -497,7 +497,7 @@ impl<T: TypedNode> AddNodeRequest<T> {
         }
 
         if template.description.ends_with(".missing") {
-            return Err(Error::Node(format!(
+            return Err(Error::Client(format!(
                 "Cannot create node as image for template '{}' is missing",
                 template.name
             )));
@@ -772,7 +772,7 @@ pub struct EditNodeRequest<T> {
 impl<T: TypedNode> EditNodeRequest<T> {
     pub(crate) fn from_node(node: &Node) -> Result<Self> {
         if node.node_type != T::NODE_TYPE {
-            return Err(Error::Node(format!(
+            return Err(Error::Client(format!(
                 "Incorrect type, expected '{}', got '{}'",
                 node.node_type,
                 T::NODE_TYPE

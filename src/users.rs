@@ -96,11 +96,11 @@ impl UserName {
         let username = username.into();
 
         if username.is_empty() {
-            return Err(Error::User("Username cannot be empty".to_string()));
+            return Err(Error::Client("Username cannot be empty".to_string()));
         }
 
         if !validate_name(&username, &['-', '_']) {
-            return Err(Error::User(format!(
+            return Err(Error::Client(format!(
                 "Invalid username {}, must contain letters, digits, '-' and '_'.",
                 &username
             )));
@@ -172,7 +172,7 @@ impl AddUserRequest {
         let password = password.into();
 
         if password.is_empty() {
-            return Err(Error::User("password cannot be empty".to_string()));
+            return Err(Error::Client("Password cannot be empty".to_string()));
         }
 
         Ok(Self {
@@ -202,7 +202,7 @@ impl AddUserRequest {
     pub fn name(mut self, name: impl Into<String>) -> Result<Self> {
         let name = name.into();
         if !validate_name(&name, &['-', '_', ' ']) {
-            return Err(Error::User(format!(
+            return Err(Error::Client(format!(
                 "Invalid name '{}', must contain letters, digits, spaces, `-` and `_`.",
                 &name,
             )));
@@ -267,7 +267,7 @@ impl EditUserRequest {
     pub fn name(mut self, name: impl Into<String>) -> Result<Self> {
         let name = name.into();
         if !validate_name(&name, &['-', '_', ' ']) {
-            return Err(Error::User(format!(
+            return Err(Error::Client(format!(
                 "Invalid name '{}', must contain letters, digits, spaces, '-' and '_'.",
                 &name,
             )));

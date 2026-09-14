@@ -169,7 +169,7 @@ impl<T: TypedInterface> InterfaceClient<T> {
     pub async fn get(&self) -> Result<T> {
         let ifaces = self.interfaces().list().await?;
 
-        T::take(ifaces, self.id).ok_or(Error::Interface(
+        T::take(ifaces, self.id).ok_or(Error::Client(
             "Cannot find interface for the selected node.".to_string(),
         ))
     }
@@ -181,31 +181,31 @@ impl<T: TypedInterface> InterfaceClient<T> {
 
     async fn ensure_connectable(&self, dest: &Self) -> Result<()> {
         if self.client.base_url != dest.client.base_url {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Nodes from different clients cannot be connected.".to_string(),
             ));
         }
 
         if self.path.as_str() != dest.path.as_str() {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Nodes from different labs cannot be connected.".to_string(),
             ));
         }
 
         if self.node_id == dest.node_id {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Source and destination nodes cannot be the same.".to_string(),
             ));
         }
 
         if self.is_connected().await? {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Source interface is already connected".to_string(),
             ));
         }
 
         if dest.is_connected().await? {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Destination interface is already connected".to_string(),
             ));
         }
@@ -262,19 +262,19 @@ impl InterfaceClient<Ethernet> {
     /// Creates a connection between a node and a network.
     pub async fn connect_to_network(&self, dest: &NetworkClient) -> Result<()> {
         if self.client.base_url != dest.client.base_url {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Nodes from different clients cannot be connected.".to_string(),
             ));
         }
 
         if self.path.as_str() != dest.path.as_str() {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Devices from different labs cannot be connected.".to_string(),
             ));
         }
 
         if self.is_connected().await? {
-            return Err(Error::Interface(
+            return Err(Error::Client(
                 "Source interface is already connected".to_string(),
             ));
         }

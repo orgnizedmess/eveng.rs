@@ -133,11 +133,11 @@ impl LabPath {
 
     fn validate(name: &str) -> Result<()> {
         if name.is_empty() {
-            return Err(Error::Lab("Lab name cannot be empty".to_string()));
+            return Err(Error::Client("Lab name cannot be empty".to_string()));
         }
 
         if !validate_name(name, &['-', '_', ' ']) {
-            return Err(Error::Lab(format!(
+            return Err(Error::Client(format!(
                 "Invalid lab name '{}', must only contain letters, digits, spaces and '-'/'_'",
                 name
             )));
@@ -303,7 +303,7 @@ impl LabClient {
         match self.labs().current().await? {
             Some(lab) if lab.path == self.path => return Ok(()),
             Some(lab) => {
-                return Err(Error::Lab(format!(
+                return Err(Error::Client(format!(
                     "Cannot open lab '{}' because '{}' is currently open.",
                     self.path, lab.path
                 )));
@@ -330,7 +330,7 @@ impl LabClient {
             .any(|(_, v)| v.status != NodeStatus::Stopped);
 
         if has_running_nodes {
-            return Err(Error::Lab(format!(
+            return Err(Error::Client(format!(
                 "Lab '{}' cannot be closed as it has running nodes.",
                 self.path
             )));
@@ -425,7 +425,7 @@ impl AddLabRequest {
     /// Sets the seconds to boot nodes from a startup config.
     pub fn scripttimeout(mut self, scripttimeout: u32) -> Result<Self> {
         if scripttimeout < 300 {
-            return Err(Error::Lab(
+            return Err(Error::Client(
                 "Minimum script timeout is 300 seconds".to_string(),
             ));
         }
@@ -503,7 +503,7 @@ impl EditLabRequest {
     /// Sets the seconds to boot nodes from a startup config.
     pub fn scripttimeout(mut self, scripttimeout: u32) -> Result<Self> {
         if scripttimeout < 300 {
-            return Err(Error::Lab(
+            return Err(Error::Client(
                 "Minimum script timeout is 300 seconds".to_string(),
             ));
         }

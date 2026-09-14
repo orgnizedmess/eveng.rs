@@ -3,6 +3,7 @@ use crate::system::SystemClient;
 use crate::users::{UserClient, UserName, UsersClient};
 use crate::utils::number_from_string;
 use crate::{Error, Result};
+
 use reqwest::{Method, Url};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -27,8 +28,11 @@ pub struct ClientBuilder {
 
 impl ClientBuilder {
     fn new(base_url: impl AsRef<str>) -> Result<Self> {
+        let url = Url::parse(base_url.as_ref())
+            .map_err(|e| Error::Client(format!("Invalid URL: {e}")))?;
+
         Ok(Self {
-            base_url: Arc::new(Url::parse(base_url.as_ref())?),
+            base_url: Arc::new(url),
             timeout: Duration::from_secs(30),
             ssl_verify: true,
             html5: 1,
@@ -72,7 +76,7 @@ impl ClientBuilder {
         let password = password.into();
 
         if password.is_empty() {
-            return Err(Error::User("password cannot be empty".to_string()));
+            return Err(Error::Client("Password cannot be empty".to_string()));
         }
 
         #[derive(Serialize)]
@@ -107,7 +111,7 @@ pub(crate) struct Response<T> {
 
 impl<T> Response<T> {
     pub(crate) fn into_data(self) -> Result<T> {
-        self.data.ok_or(Error::MissingData)
+        self.data.ok_or(Error::Client("Expected data in response but got none.".to_string()))
     }
 }
 
@@ -164,7 +168,8 @@ impl Client {
         T: DeserializeOwned,
         B: Serialize,
     {
-        let url = self.base_url.join(&format!("api/{}", endpoint))?;
+        let url = self.base_url.join(&format!("api/{}", endpoint))
+            .map_err(|e| Error::Client(format!("Invalid URL: {e}")))?;
         let mut request = self.api.request(method, url);
 
         if let Some(body) = body {
@@ -234,7 +239,7 @@ mod tests {
     #[test]
     fn invalid_client_builder() {
         let err = Client::builder("eveng.example.com").unwrap_err();
-        assert!(matches!(err, Error::InvalidUrl(_)));
+        assert!(matches!(err, Error::Client(_)));
     }
 
     #[test]

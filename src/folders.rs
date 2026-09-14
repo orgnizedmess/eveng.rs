@@ -59,11 +59,11 @@ impl FolderPath {
 
     fn validate(path: &str) -> Result<()> {
         if path.is_empty() {
-            return Err(Error::Folder("Path cannot be empty".to_string()));
+            return Err(Error::Client("Path cannot be empty".to_string()));
         }
 
         if !path.starts_with("/") {
-            return Err(Error::Folder("Path must be an absolute path".to_string()));
+            return Err(Error::Client("Path must be an absolute path".to_string()));
         }
 
         for segment in path.split("/") {
@@ -75,7 +75,7 @@ impl FolderPath {
 
     fn validate_segment(name: &str) -> Result<()> {
         if !validate_name(name, &['-', '_', ' ']) {
-            return Err(Error::Folder(format!(
+            return Err(Error::Client(format!(
                 "Invalid folder segment '{}', must only contain letters, digits, spaces and '-'/'_'",
                 name
             )));
