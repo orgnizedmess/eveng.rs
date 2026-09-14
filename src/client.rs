@@ -69,6 +69,11 @@ impl ClientBuilder {
         };
 
         let username = UserName::new(username.into())?;
+        let password = password.into();
+
+        if password.is_empty() {
+            return Err(Error::User("password cannot be empty".to_string()));
+        }
 
         #[derive(Serialize)]
         struct LoginRequest {
@@ -79,7 +84,7 @@ impl ClientBuilder {
 
         let params = &LoginRequest {
             username: username.to_string(),
-            password: password.into(),
+            password,
             html5: self.html5,
         };
 
@@ -124,7 +129,7 @@ impl Client {
     }
 
     /// Logs out of the EVE-NG instance.
-    pub async fn logout(self) -> Result<()> {
+    pub async fn logout(&self) -> Result<()> {
         self.get::<()>("auth/logout").await?;
         Ok(())
     }
