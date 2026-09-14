@@ -112,8 +112,8 @@ where
     }
 }
 
-/// Validation for names in EVE-NG. Allows for letters, digits
-/// and an additional set of characters depending on the caller.
+/// Validation for names in EVE-NG. Allows for letters, digits and an additional
+/// set of characters depending on the caller.
 pub(crate) fn validate_name(name: &str, extra: &[char]) -> bool {
     name.chars()
         .all(|c| c.is_ascii_alphanumeric() || extra.contains(&c))
