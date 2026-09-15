@@ -180,7 +180,7 @@ impl LabPath {
     }
 
     fn join(folder: FolderPath, lab: &str) -> String {
-        format!("{}/{}.unl", folder.as_str(), lab)
+        format!("{}/{}.unl", folder.as_str().trim_end_matches("/"), lab)
     }
 }
 
@@ -234,26 +234,26 @@ impl LabClient {
     ///
     /// To update other lab details, see [`edit`](Self::edit).
     pub async fn rename(self, name: impl AsRef<str>) -> Result<Self> {
-        let new_path = LabPath::new(self.path.folder(), name.as_ref())?;
+        let new_path = LabPath::new(self.path.folder(), name)?;
 
-        let params = EditLabRequest::new().name(new_path.lab_name());
+        let params = serde_json::json!({"name": new_path.lab_name()});
         self.client
-            .put::<(), EditLabRequest>(&format!("labs{}", self.path), &params)
+            .put::<(), serde_json::Value>(&format!("labs{}", self.path), &params)
             .await?;
 
         Ok(Self::from_path(self.client.clone(), new_path))
     }
 
     /// Moves the lab to the specified path.
-    pub async fn move_to(self, path: impl AsRef<str>) -> Result<Self> {
-        let folder = FolderPath::new(path.as_ref())?;
-        let params = EditLabRequest::new().path(folder.as_str());
+    pub async fn move_to(self, folder: &FolderClient) -> Result<Self> {
+        let path = &folder.path;
+        let params = serde_json::json!({"path": path.as_str()});
 
         self.client
-            .put::<(), EditLabRequest>(&format!("labs{}/move", self.path), &params)
+            .put::<(), serde_json::Value>(&format!("labs{}/move", self.path), &params)
             .await?;
 
-        let new_path = LabPath::from_validated(folder, self.path.lab_file());
+        let new_path = LabPath::from_validated(path.clone(), self.path.lab_name());
         Ok(Self::from_path(self.client.clone(), new_path))
     }
 
@@ -283,6 +283,24 @@ impl LabClient {
 
     /// Lists the lab's topology.
     pub async fn topology(&self) -> Result<Vec<TopologyEntry>> {
+        let current_lab = self.labs().current().await?;
+
+        let topology = self.topology_inner().await;
+
+        // Restoring the previous lab state as this endpoint opens the called
+        // lab as a side effect.
+        if let Some(lab) = current_lab {
+            if lab.path != self.path {
+                lab.topology_inner().await?;
+            }
+        } else {
+            self.close_inner().await?;
+        }
+
+        topology
+    }
+
+    async fn topology_inner(&self) -> Result<Vec<TopologyEntry>> {
         self.client
             .get(&format!("labs{}/topology", self.path))
             .await?
@@ -311,7 +329,7 @@ impl LabClient {
             None => {}
         }
 
-        self.topology().await?;
+        self.topology_inner().await?;
         Ok(())
     }
 
@@ -322,12 +340,16 @@ impl LabClient {
             _ => return Ok(()),
         }
 
+        self.close_inner().await
+    }
+
+    async fn close_inner(&self) -> Result<()> {
         let has_running_nodes = self
             .nodes()
             .list()
             .await?
             .iter()
-            .any(|(_, v)| v.status != NodeStatus::Stopped);
+            .any(|(_, v)| !matches!(v.status, NodeStatus::Stopped));
 
         if has_running_nodes {
             return Err(Error::Client(format!(
@@ -336,10 +358,6 @@ impl LabClient {
             )));
         }
 
-        self.close_inner().await
-    }
-
-    async fn close_inner(&self) -> Result<()> {
         self.client.delete::<()>("labs/close").await?;
         Ok(())
     }
@@ -366,20 +384,18 @@ impl LabClient {
 }
 
 /// Request for adding a lab.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AddLabRequest {
     name: String,
     path: String,
+    scripttimeout: u32,
+    version: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     body: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    scripttimeout: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<u32>,
 }
 
 impl AddLabRequest {
@@ -392,8 +408,8 @@ impl AddLabRequest {
 
         Ok(Self {
             name,
-            scripttimeout: Some(300),
-            version: Some(1),
+            scripttimeout: 300,
+            version: 1,
             ..Default::default()
         })
     }
@@ -418,7 +434,7 @@ impl AddLabRequest {
 
     /// Sets the version number of the lab.
     pub fn version(mut self, version: u32) -> Self {
-        self.version = Some(version);
+        self.version = version;
         self
     }
 
@@ -429,7 +445,7 @@ impl AddLabRequest {
                 "Minimum script timeout is 300 seconds".to_string(),
             ));
         }
-        self.scripttimeout = Some(scripttimeout);
+        self.scripttimeout = scripttimeout;
         Ok(self)
     }
 
@@ -448,10 +464,6 @@ pub struct EditLabRequest {
     body: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     scripttimeout: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -516,71 +528,127 @@ impl EditLabRequest {
         self.version = Some(version);
         self
     }
-
-    pub(crate) fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub(crate) fn path(mut self, path: impl Into<String>) -> Self {
-        self.path = Some(path.into());
-        self
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn test_folder() -> Result<FolderPath> {
-        FolderPath::new("/Test Folder")
+    fn root() -> FolderPath {
+        FolderPath::new("/").unwrap()
     }
 
-    fn new_folder() -> Result<FolderPath> {
-        FolderPath::new("/New Folder")
+    fn test_folder() -> FolderPath {
+        FolderPath::new("/Test Folder").unwrap()
+    }
+
+    fn new_folder() -> FolderPath {
+        FolderPath::new("/New Folder").unwrap()
     }
 
     #[test]
-    fn valid_lab_path() -> Result<()> {
-        let path = LabPath::new(test_folder()?, "Test")?;
-
+    fn valid_lab_path() {
+        let path = LabPath::new(test_folder(), "Test").unwrap();
         assert_eq!(path.as_str(), "/Test Folder/Test.unl");
         assert_eq!(path.folder().as_str(), "/Test Folder");
         assert_eq!(path.lab_file(), "Test.unl");
-
-        Ok(())
     }
 
     #[test]
-    fn invalid_lab_path() -> Result<()> {
-        let path = LabPath::new(test_folder()?, "Lab: Test");
+    fn invalid_lab_path() {
+        let path = LabPath::new(test_folder(), "Lab: Test");
         assert!(path.is_err());
-
-        Ok(())
     }
 
     #[test]
-    fn lab_rename() -> Result<()> {
-        let path = LabPath::new(test_folder()?, "Test")?;
-        let new_path = LabPath::new(path.folder(), "Test1")?;
-
-        assert_eq!(new_path.as_str(), "/Test Folder/Test1.unl");
-        assert_eq!(new_path.folder().as_str(), "/Test Folder");
+    fn lab_rename() {
+        let path = LabPath::new(root(), "Test").unwrap();
+        let new_path = LabPath::new(path.folder(), "Test1").unwrap();
+        assert_eq!(new_path.as_str(), "/Test1.unl");
+        assert_eq!(new_path.folder().as_str(), "/");
         assert_eq!(new_path.lab_file(), "Test1.unl");
         assert_eq!(new_path.lab_name(), "Test1");
-
-        Ok(())
     }
 
     #[test]
-    fn lab_move() -> Result<()> {
-        let path = LabPath::new(test_folder()?, "Test")?;
-        let new_path = LabPath::new(new_folder()?, path.lab_name())?;
-
+    fn lab_move() {
+        let path = LabPath::new(root(), "Test").unwrap();
+        let new_path = LabPath::new(new_folder(), path.lab_name()).unwrap();
         assert_eq!(new_path.as_str(), "/New Folder/Test.unl");
         assert_eq!(new_path.folder().as_str(), "/New Folder");
         assert_eq!(new_path.lab_file(), "Test.unl");
+    }
 
-        Ok(())
+    #[test]
+    fn add_lab_defaults() {
+        let req = AddLabRequest::new("Test").unwrap();
+        assert_eq!(req.author, None);
+        assert_eq!(req.body, None);
+        assert_eq!(req.description, None);
+        assert_eq!(req.name, "Test".to_string());
+        assert_eq!(req.path, String::new());
+        assert_eq!(req.scripttimeout, 300);
+        assert_eq!(req.version, 1);
+    }
+
+    #[test]
+    fn add_lab_invalid() {
+        let req = AddLabRequest::new("Test").unwrap().scripttimeout(0);
+        assert!(req.is_err());
+    }
+
+    #[test]
+    fn add_lab_setters() {
+        let req = AddLabRequest::new("Test")
+            .unwrap()
+            .author("Test User")
+            .body("This lab is created for test purposes.")
+            .description("A test lab")
+            .scripttimeout(600)
+            .unwrap()
+            .version(2);
+        assert_eq!(req.scripttimeout, 600);
+        assert_eq!(req.version, 2);
+        assert_eq!(req.author, Some("Test User".to_string()));
+        assert_eq!(
+            req.body,
+            Some("This lab is created for test purposes.".to_string())
+        );
+        assert_eq!(req.description, Some("A test lab".to_string()));
+    }
+
+    #[test]
+    fn edit_lab_defaults() {
+        let req = EditLabRequest::new();
+        assert_eq!(req.scripttimeout, None);
+        assert_eq!(req.version, None);
+        assert_eq!(req.author, None);
+        assert_eq!(req.body, None);
+        assert_eq!(req.description, None);
+    }
+
+    #[test]
+    fn edit_lab_invalid() {
+        let req = EditLabRequest::new().scripttimeout(0);
+        assert!(req.is_err());
+    }
+
+    #[test]
+    fn edit_lab_setters() {
+        let req = EditLabRequest::new()
+            .author("Test User")
+            .body("This lab is created for test purposes.")
+            .description("A test lab")
+            .scripttimeout(600)
+            .unwrap()
+            .version(2);
+        assert_eq!(req.scripttimeout, Some(600));
+        assert_eq!(req.version, Some(2));
+        assert_eq!(req.author, Some("Test User".to_string()));
+        assert_eq!(
+            req.body,
+            Some("This lab is created for test purposes.".to_string())
+        );
+        assert_eq!(req.description, Some("A test lab".to_string()));
     }
 }
