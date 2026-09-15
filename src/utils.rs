@@ -130,7 +130,19 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
-    struct Holder {
+    struct Id {
+        #[serde(deserialize_with = "number_from_string")]
+        id: u32,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Uuid {
+        #[serde(deserialize_with = "empty_string_is_none")]
+        uuid: Option<String>
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Links {
         #[serde(deserialize_with = "map_or_seq")]
         ethernet: HashMap<i32, String>,
         #[serde(deserialize_with = "map_or_seq")]
@@ -138,18 +150,41 @@ mod tests {
     }
 
     #[test]
+    fn string_number_becomes_number() {
+        let id: Id = serde_json::from_str(r#"{"id":"1"}"#).unwrap();
+        assert_eq!(id.id, 1);
+    }
+
+    #[test]
+    fn number_remains_number() {
+        let id: Id = serde_json::from_str(r#"{"id":1}"#).unwrap();
+        assert_eq!(id.id, 1);
+    }
+
+    #[test]
+    fn empty_string_becomes_none() {
+        let uuid: Uuid = serde_json::from_str(r#"{"uuid":""}"#).unwrap();
+        assert_eq!(uuid.uuid, None);
+    }
+
+    #[test]
+    fn string_remains_string() {
+        let uuid: Uuid = serde_json::from_str(r#"{"uuid":"6d88a1b5-64db-46c2-9aa5-ca4fca0811c2"}"#).unwrap();
+        assert_eq!(uuid.uuid, Some("6d88a1b5-64db-46c2-9aa5-ca4fca0811c2".to_string()));
+    }
+
+    #[test]
     fn map_stays_a_map() {
-        let m: HashMap<String, Item> =
-            serde_json::from_str(r#"{"1":{"name":"a"},"2":{"name":"b"}}"#).unwrap();
-        assert_eq!(m.len(), 2);
-        assert_eq!(m["1"].name, "a");
+        let m: Links =
+            serde_json::from_str(r#"{"ethernet":{"1":"a","16":"b","49":"c"},"serial":{"1":{"3":"a"}}}"#).unwrap();
+        assert_eq!(m.ethernet[&1], "a");
+        assert_eq!(m.serial[&1][&3], "a");
     }
 
     #[test]
     fn array_becomes_a_map() {
-        let h: Holder =
+        let h: Links =
             serde_json::from_str(r#"{"ethernet":["a", "b", "c"],"serial":[]}"#).unwrap();
-        eprintln!("{:#?}", h.ethernet);
         assert_eq!(h.ethernet[&0], "a");
         assert!(h.serial.is_empty());
     }
