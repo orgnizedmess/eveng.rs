@@ -106,7 +106,7 @@ impl NetworkClient {
 
     /// Deletes the network.
     pub async fn delete(self) -> Result<()> {
-        #[derive(Debug, Serialize, Deserialize)]
+        #[derive(Debug, Deserialize)]
         struct DeleteNetworkResponse {
             #[serde(deserialize_with = "number_from_string")]
             id: u32,
@@ -131,14 +131,12 @@ impl NetworkClient {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AddNetworkRequest {
     left: u32,
+    icon: String,
+    name: String,
     #[serde(rename = "type")]
     network_type: String,
     top: u32,
     visibility: u8,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    icon: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
 }
 
 impl AddNetworkRequest {
@@ -146,22 +144,23 @@ impl AddNetworkRequest {
     pub fn new(network_type: impl Into<String>) -> Self {
         Self {
             left: 0,
+            icon: "01-Cloud-Default.svg".to_string(),
+            name: "Net".to_string(),
             network_type: network_type.into(),
             top: 0,
             visibility: 1,
-            ..Self::default()
         }
     }
 
     /// Icon used to display the network in the lab.
     pub fn icon(mut self, icon: impl Into<String>) -> Self {
-        self.icon = Some(icon.into());
+        self.icon = icon.into();
         self
     }
 
     /// Name used to display the network in the lab.
     pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
+        self.name = name.into();
         self
     }
 
@@ -169,12 +168,6 @@ impl AddNetworkRequest {
     pub fn position(mut self, left: u32, top: u32) -> Self {
         self.left = left;
         self.top = top;
-        self
-    }
-
-    /// Visiblity of the network in the lab.
-    pub fn visibility(mut self, visibility: u8) -> Self {
-        self.visibility = visibility;
         self
     }
 }
@@ -231,5 +224,62 @@ impl EditNetworkRequest {
     pub fn visibility(mut self, visibility: u8) -> Self {
         self.visibility = Some(visibility);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_network_defaults() {
+        let req = AddNetworkRequest::new("bridge");
+        assert_eq!(req.left, 0);
+        assert_eq!(req.icon, "01-Cloud-Default.svg");
+        assert_eq!(req.name, "Net");
+        assert_eq!(req.network_type, "bridge");
+        assert_eq!(req.top, 0);
+        assert_eq!(req.visibility, 1);
+    }
+
+    #[test]
+    fn add_network_setters() {
+        let req = AddNetworkRequest::new("bridge")
+            .icon("lan.png")
+            .name("Bridge")
+            .position(100, 100);
+        assert_eq!(req.left, 100);
+        assert_eq!(req.icon, "lan.png");
+        assert_eq!(req.name, "Bridge");
+        assert_eq!(req.network_type, "bridge");
+        assert_eq!(req.top, 100);
+        assert_eq!(req.visibility, 1);
+    }
+
+    #[test]
+    fn edit_network_defaults() {
+        let req = EditNetworkRequest::new();
+        assert_eq!(req.left, None);
+        assert_eq!(req.icon, None);
+        assert_eq!(req.name, None);
+        assert_eq!(req.network_type, None);
+        assert_eq!(req.top, None);
+        assert_eq!(req.visibility, None);
+    }
+
+    #[test]
+    fn edit_user_setters() {
+        let req = EditNetworkRequest::new()
+            .icon("lan.png")
+            .name("Mgmt")
+            .network_type("pnet0")
+            .position(100, 100)
+            .visibility(0);
+        assert_eq!(req.left, Some(100));
+        assert_eq!(req.icon, Some("lan.png".to_string()));
+        assert_eq!(req.name, Some("Mgmt".to_string()));
+        assert_eq!(req.network_type, Some("pnet0".to_string()));
+        assert_eq!(req.top, Some(100));
+        assert_eq!(req.visibility, Some(0));
     }
 }

@@ -241,10 +241,8 @@ impl InterfaceClient<Ethernet> {
             .get()
             .await?;
 
-        let req =
-            AddNetworkRequest::new("bridge").name(format!("Net-{}iface{}", src.name, self.id));
         let bridge = NetworksClient::new(self.client.clone(), self.path.clone())
-            .add(&req)
+            .add(AddNetworkRequest::new("bridge").name(format!("Net-{}iface{}", src.name, self.id)))
             .await?;
 
         self.connect(bridge.id.to_string()).await?;
@@ -256,7 +254,7 @@ impl InterfaceClient<Ethernet> {
 
         // Making the bridge invisible during creation causes errors,
         // hence it requires a separate request
-        bridge.edit(&EditNetworkRequest::new().visibility(0)).await
+        bridge.edit(EditNetworkRequest::new().visibility(0)).await
     }
 
     /// Creates a connection between a node and a network.
