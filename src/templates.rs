@@ -73,6 +73,8 @@ pub struct TemplateOptions {
     /// CPU limit status of the node (QEMU only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cpulimit: Option<CheckboxOption>,
+    /// Type of console of the node.
+    pub console: Option<ListOption>,
     /// Number of configured Ethernet interfaces/portgroups (Docker, Dynamips,
     /// IOL and QEMU).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -196,5 +198,97 @@ impl TemplateClient {
         resp.name = self.name.clone();
 
         Ok(resp)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn template() -> NodeTemplate {
+        let json = r#"
+        {
+            "options": {
+                "image":{"name":"Image","type":"list","list":{"vios-15":"vios-15"},"value":"vios-15"},
+                "name":{"name":"Name\/prefix","type":"input","value":"vIOS"},
+                "icon":{"name":"Icon","type":"list","value":"Router-2D-Gen-White-S.svg","list":{"Router-2D-Gen-White-S.svg":"Router-2D-Gen-White-S.svg","Router.png":"Router.png"}},
+                "uuid":{"name":"UUID","type":"input","value":""},
+                "cpulimit":{"name":"CPU Limit","type":"checkbox","value":1},
+                "cpu":{"name":"CPU","type":"input","value":1},
+                "ram":{"name":"RAM","type":"input","value":1024},
+                "ethernet":{"name":"Ethernets","type":"input","value":4},
+                "qemu_version":{"name":"QEMU Version","type":"list","value":"2.4.0","list":{"1.3.1":"1.3.1","2.0.2":"2.0.2","2.2.0":"2.2.0","2.4.0":"2.4.0","2.5.0":"2.5.0","2.6.2":"2.6.2","2.12.0":"2.12.0","3.1.0":"3.1.0","4.1.0":"4.1.0","5.2.0":"5.2.0","6.0.0":"6.0.0","":"tpl(2.4.0)"}},
+                "qemu_arch":{"name":"QEMU Arch","type":"list","value":"x86_64","list":{"i386":"i386","x86_64":"x86_64","":"tpl(x86_64)"}},
+                "qemu_nic":{"name":"QEMU Nic","type":"list","value":"","list":{"virtio-net-pci":"virtio-net-pci","e1000":"e1000","i82559er":"i82559er","rtl8139":"rtl8139","e1000-82545em":"e1000-82545em","vmxnet3":"vmxnet3","":"tpl(e1000)"}},
+                "qemu_options":{"name":"QEMU custom options","type":"input","value":"-machine type=pc,accel=kvm -serial mon:stdio -nographic -no-user-config -nodefaults -rtc base=utc -cpu host"},
+                "config":{"name":"Startup configuration","type":"list","value":"0","list":["None","Exported"]},
+                "delay":{"name":"Delay (s)","type":"input","value":0},
+                "console":{"name":"Console","type":"list","value":"telnet","list":{"telnet":"telnet","vnc":"vnc","rdp":"rdp"}}
+            },
+            "description":"Cisco vIOS Router",
+            "type":"qemu",
+            "qemu":{"arch":"x86_64","version":"2.4.0","options":"-machine type=pc,accel=kvm -serial mon:stdio -nographic -no-user-config -nodefaults -rtc base=utc -cpu host"}
+        }
+        "#;
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn deserialize_list_option() {
+        let opts = template().options;
+        let icon = opts.icon;
+
+        assert_eq!(icon.value, "Router-2D-Gen-White-S.svg");
+        assert_eq!(icon.option_type, "list");
+        assert_eq!(icon.list.get("Router.png").unwrap(), "Router.png");
+    }
+
+    #[test]
+    fn deserialize_input_option() {
+        let opts = template().options;
+        let ram = opts.ram.unwrap();
+
+        assert_eq!(ram.value, 1024);
+        assert_eq!(ram.option_type, "input");
+        assert_eq!(ram.name, "RAM");
+    }
+
+    #[test]
+    fn deserialize_checkbox_option() {
+        let opts = template().options;
+        let cpulimit = opts.cpulimit.unwrap();
+
+        assert_eq!(cpulimit.value, 1);
+        assert_eq!(cpulimit.option_type, "checkbox");
+        assert_eq!(cpulimit.name, "CPU Limit");
+    }
+
+    #[test]
+    fn defaults_map() {
+        let map = template().defaults_map().unwrap();
+
+        assert_eq!(map.get("image").unwrap(), &json!("vios-15"));
+        assert_eq!(map.get("name").unwrap(), &json!("vIOS"));
+        assert_eq!(
+            map.get("icon").unwrap(),
+            &json!("Router-2D-Gen-White-S.svg")
+        );
+        assert_eq!(map.get("uuid").unwrap(), &json!(""));
+        assert_eq!(map.get("cpu").unwrap(), &json!(1));
+        assert_eq!(map.get("ram").unwrap(), &json!(1024));
+        assert_eq!(map.get("ethernet").unwrap(), &json!(4));
+        assert_eq!(map.get("qemu_version").unwrap(), &json!("2.4.0"));
+        assert_eq!(map.get("qemu_arch").unwrap(), &json!("x86_64"));
+        assert_eq!(map.get("qemu_nic").unwrap(), &json!(""));
+        assert_eq!(
+            map.get("qemu_options").unwrap(),
+            &json!(
+                "-machine type=pc,accel=kvm -serial mon:stdio -nographic -no-user-config -nodefaults -rtc base=utc -cpu host"
+            )
+        );
+        assert_eq!(map.get("config").unwrap(), &json!(0));
+        assert_eq!(map.get("delay").unwrap(), &json!(0));
+        assert_eq!(map.get("console").unwrap(), &json!("telnet"));
     }
 }
