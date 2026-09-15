@@ -179,7 +179,7 @@ impl AddUserRequest {
             username: username.to_string(),
             password,
             expiration: -1,
-            role: "admin".to_string(),
+            role: "user".to_string(),
             ..Default::default()
         })
     }
@@ -282,18 +282,82 @@ mod tests {
     use super::*;
 
     #[test]
-    fn valid_username() -> Result<()> {
+    fn valid_username() {
         let result = UserName::new("test");
         assert!(result.is_ok());
-
-        Ok(())
     }
 
     #[test]
-    fn invalid_username() -> Result<()> {
+    fn invalid_username() {
         let result = UserName::new("test user");
         assert!(result.is_err());
+    }
 
-        Ok(())
+    #[test]
+    fn add_user_defaults() {
+        let req = AddUserRequest::new("test", "test").unwrap();
+        assert_eq!(req.expiration, -1);
+        assert_eq!(req.role, "user".to_string());
+        assert_eq!(req.email, None);
+        assert_eq!(req.name, None);
+    }
+
+    #[test]
+    fn add_user_invalid() {
+        let req = AddUserRequest::new("test", "");
+        assert!(req.is_err());
+
+        let req = AddUserRequest::new("", "test");
+        assert!(req.is_err());
+
+        let req = AddUserRequest::new("test", "test")
+            .unwrap()
+            .name("Test+User");
+        assert!(req.is_err());
+    }
+
+    #[test]
+    fn add_user_setters() {
+        let req = AddUserRequest::new("test", "test")
+            .unwrap()
+            .expiration(1792081391)
+            .role("admin")
+            .email("test@test.com")
+            .name("Test User")
+            .unwrap();
+        assert_eq!(req.expiration, 1792081391);
+        assert_eq!(req.role, "admin".to_string());
+        assert_eq!(req.email, Some("test@test.com".to_string()));
+        assert_eq!(req.name, Some("Test User".to_string()));
+    }
+
+    #[test]
+    fn edit_user_defaults() {
+        let req = EditUserRequest::new();
+        assert_eq!(req.password, None);
+        assert_eq!(req.expiration, None);
+        assert_eq!(req.role, None);
+        assert_eq!(req.email, None);
+        assert_eq!(req.name, None);
+    }
+
+    #[test]
+    fn edit_user_invalid() {
+        let req = EditUserRequest::new().name("Test+User");
+        assert!(req.is_err());
+    }
+
+    #[test]
+    fn edit_user_setters() {
+        let req = EditUserRequest::new()
+            .expiration(1792081391)
+            .role("admin")
+            .email("test@test.com")
+            .name("Test User")
+            .unwrap();
+        assert_eq!(req.expiration, Some(1792081391));
+        assert_eq!(req.role, Some("admin".to_string()));
+        assert_eq!(req.email, Some("test@test.com".to_string()));
+        assert_eq!(req.name, Some("Test User".to_string()));
     }
 }
