@@ -19,11 +19,11 @@ static INIT: OnceCell<()> = OnceCell::const_new();
 
 impl TestEnv {
     pub async fn setup() -> Result<Self> {
-        let host = Self::host();
+        let url = Self::url();
         let username = Self::username();
         let password = env::var("EVE_NG_PASS").unwrap_or("eve".to_string());
 
-        let client = Client::login(host, username, password).await?;
+        let client = Client::login(url, username, password).await?;
 
         INIT.get_or_init(|| async {
             let _ = client.user("test").unwrap().delete().await;
@@ -46,8 +46,8 @@ impl TestEnv {
         Ok(Self { client })
     }
 
-    pub fn host() -> String {
-        env::var("EVE_NG_HOST").unwrap_or("http://127.0.0.1".to_string())
+    pub fn url() -> String {
+        env::var("EVE_NG_URL").unwrap_or("http://localhost".to_string())
     }
 
     pub fn username() -> String {
@@ -83,7 +83,7 @@ async fn login_success() -> Result<()> {
 #[tokio::test]
 #[ignore]
 async fn login_failure() {
-    let result = Client::login(TestEnv::host(), TestEnv::username(), "incorrect").await;
+    let result = Client::login(TestEnv::url(), TestEnv::username(), "incorrect").await;
     assert!(matches!(result, Err(Error::Api { code: 500, .. })));
 }
 
