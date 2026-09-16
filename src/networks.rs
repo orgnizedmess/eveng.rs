@@ -106,19 +106,7 @@ impl NetworkClient {
 
     /// Deletes the network.
     pub async fn delete(self) -> Result<()> {
-        #[derive(Debug, Deserialize)]
-        struct DeleteNetworkResponse {
-            #[serde(deserialize_with = "number_from_string")]
-            id: u32,
-            count: i32,
-            left: i32,
-            name: String,
-            top: i32,
-            #[serde(rename = "type")]
-            network_type: String,
-        }
-
-        let _: DeleteNetworkResponse = self
+        let _: serde_json::Value = self
             .client
             .delete(&format!("labs{}/networks/{}", self.path, self.id))
             .await?

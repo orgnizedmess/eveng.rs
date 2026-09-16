@@ -102,7 +102,7 @@ impl UserName {
         if !validate_name(&username, &['-', '_']) {
             return Err(Error::Client(format!(
                 "Invalid username {}, must contain letters, digits, '-' and '_'.",
-                &username
+                username
             )));
         }
 
@@ -208,7 +208,7 @@ impl AddUserRequest {
         if !validate_name(&name, &['-', '_', ' ']) {
             return Err(Error::Client(format!(
                 "Invalid name '{}', must contain letters, digits, spaces, `-` and `_`.",
-                &name,
+                name,
             )));
         }
         self.name = Some(name);
@@ -273,7 +273,7 @@ impl EditUserRequest {
         if !validate_name(&name, &['-', '_', ' ']) {
             return Err(Error::Client(format!(
                 "Invalid name '{}', must contain letters, digits, spaces, '-' and '_'.",
-                &name,
+                name,
             )));
         }
         self.name = Some(name);

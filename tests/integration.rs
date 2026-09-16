@@ -335,7 +335,7 @@ async fn node_lifecycle() -> Result<()> {
     assert!(matches!(node.status().await?, NodeStatus::Running));
     assert_eq!(
         env.client.system().auth_status().await?.lab,
-        "/test.unl".to_string()
+        Some("/test.unl".to_string())
     );
 
     node.stop().await?;
