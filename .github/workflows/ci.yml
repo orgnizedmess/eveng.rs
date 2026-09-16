@@ -2,11 +2,11 @@ name: CI
 
 on:
   push:
-    paths-ignore:
-      - "**/*.md"
   pull_request:
-    paths-ignore:
-      - "**/*.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -58,3 +58,26 @@ jobs:
         with:
           key: "eveng-doc"
       - run: cargo doc --no-deps
+
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # keep in sync with rust-version in Cargo.toml
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: "eveng-msrv"
+      - run: cargo check --all-targets --locked
+
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: "eveng-package"
+      - run: cargo package --locked
