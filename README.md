@@ -58,7 +58,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For more details, view the documentation.
-
 [EVE-NG]: https://eve-ng.net
 [REST API]: https://www.eve-ng.net/index.php/how-to-eve-ng-api/
