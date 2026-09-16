@@ -26,7 +26,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "eveng"
+          key: "eveng-clippy"
       - run: cargo clippy --all-targets -- -D warnings
 
   test:
@@ -37,7 +37,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "eveng"
+          key: "eveng-test"
       - run: cargo test
 
   doc:
@@ -50,5 +50,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "eveng"
+          key: "eveng-doc"
       - run: cargo doc --no-deps
