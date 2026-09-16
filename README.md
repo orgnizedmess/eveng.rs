@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let vios1 = lab
         .nodes()
         .add(
-            &AddNodeRequest::qemu(&tmpl)?
+            AddNodeRequest::qemu(&tmpl)?
                 .name("vios1")
                 .position(100, 200)
                 .ethernet(2),
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let vios2 = lab
         .nodes()
         .add(
-            &AddNodeRequest::qemu(&tmpl)?
+            AddNodeRequest::qemu(&tmpl)?
                 .name("vios2")
                 .position(200, 200)
                 .ethernet(2),
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect_to_node(&vios2.ethernet(0))
         .await?;
 
-    let cloud = lab.networks().add(&AddNetworkRequest::new("pnet0")).await?;
+    let cloud = lab.networks().add(AddNetworkRequest::new("pnet0")).await?;
 
     vios1.ethernet(1).connect_to_network(&cloud).await?;
     vios2.ethernet(1).connect_to_network(&cloud).await?;
