@@ -1,6 +1,6 @@
 //! # EVE-NG API client for Rust
 //!
-//! This library is an API client for [EVE-NG]. It implements the endpoints
+//! This is an API client for [EVE-NG]. It implements the endpoints
 //! documented as part of it's [REST API], as well as lesser documented
 //! endpoints found in the source code.
 //!
