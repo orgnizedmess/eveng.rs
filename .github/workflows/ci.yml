@@ -2,11 +2,11 @@ name: CI
 
 on:
   push:
-    - paths_ignore:
-        "**/*.md"
+    paths-ignore:
+      - "**/*.md"
   pull_request:
-    - paths_ignore:
-        "**/*.md"
+    paths-ignore:
+      - "**/*.md"
 
 env:
   CARGO_TERM_COLOR: always

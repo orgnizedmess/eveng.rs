@@ -50,11 +50,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect_to_node(&vios2.ethernet(0))
         .await?;
 
-    let cloud = lab.networks().add(
-        AddNetworkRequest::new("pnet0")
-            .name("Mgmt")
-            .position(300, 300)
-    ).await?;
+    let cloud = lab
+        .networks()
+        .add(
+            AddNetworkRequest::new("pnet0")
+                .name("Mgmt")
+                .position(300, 300),
+        )
+        .await?;
 
     vios1.ethernet(1).connect_to_network(&cloud).await?;
     vios2.ethernet(1).connect_to_network(&cloud).await?;
