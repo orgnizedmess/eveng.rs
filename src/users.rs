@@ -134,6 +134,8 @@ impl UserClient {
 
     /// Edits the user's details.
     pub async fn edit(&self, params: EditUserRequest) -> Result<()> {
+        self.get().await?;
+
         self.client
             .put::<(), EditUserRequest>(&format!("users/{}", self.username), &params)
             .await?;
@@ -142,6 +144,8 @@ impl UserClient {
 
     /// Deletes the user.
     pub async fn delete(self) -> Result<()> {
+        self.get().await?;
+
         self.client
             .delete::<()>(&format!("users/{}", self.username))
             .await?;

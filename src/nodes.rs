@@ -277,13 +277,18 @@ impl NodeClient {
             .into_data()
     }
 
-    async fn status(&self) -> Result<NodeStatus> {
+    /// Gets the run status of the node.
+    pub async fn status(&self) -> Result<NodeStatus> {
         Ok(self.get().await?.status)
     }
 
-    /// Updates the details of a node.
-    pub async fn edit<T: TypedNode>(&self, params: EditNodeRequest<T>) -> Result<()> {
+    /// Gets the type of the node.
+    pub async fn node_type(&self) -> Result<NodeType> {
+        Ok(self.get().await?.node_type)
+    }
+
     /// Updates the details of the node.
+    pub async fn edit<T: TypedNode>(&self, params: EditNodeRequest<T>) -> Result<()> {
         self.lab().open().await?;
 
         if matches!(params.status, NodeStatus::Running) {
