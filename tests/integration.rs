@@ -100,7 +100,8 @@ async fn user_lifecycle() -> Result<()> {
     let user = env.client.users().add(req).await?;
     let added = user.get().await?;
 
-    user.edit(EditUserRequest::new().email("test@test.com")).await?;
+    user.edit(EditUserRequest::new().email("test@test.com"))
+        .await?;
     let edited = user.get().await?;
     assert_eq!(edited.email, Some("test@test.com".to_string()));
     assert_ne!(edited.email, added.email);
@@ -137,13 +138,17 @@ async fn non_existent_user() -> Result<()> {
 async fn add_existing_user() -> Result<()> {
     let env = TestEnv::setup().await?;
 
-    let user = env.client.users().add(
-        AddUserRequest::new("test", "test")?.role("admin")
-    ).await?;
+    let user = env
+        .client
+        .users()
+        .add(AddUserRequest::new("test", "test")?.role("admin"))
+        .await?;
 
-    let result = env.client.users().add(
-        AddUserRequest::new("test", "test")?.role("admin")
-    ).await;
+    let result = env
+        .client
+        .users()
+        .add(AddUserRequest::new("test", "test")?.role("admin"))
+        .await;
     assert!(matches!(result, Err(Error::Api { code: 500, .. })));
 
     user.delete().await?;
@@ -224,15 +229,19 @@ async fn lab_lifecycle() -> Result<()> {
     let env = TestEnv::setup().await?;
     let root = env.client.folder("/")?;
 
-    let lab = root.labs().add(
-        AddLabRequest::new("Test")?
-            .author("Test User")
-            .description("A test lab")
-            .body("This lab is created for test purposes.")
-    ).await?;
+    let lab = root
+        .labs()
+        .add(
+            AddLabRequest::new("Test")?
+                .author("Test User")
+                .description("A test lab")
+                .body("This lab is created for test purposes."),
+        )
+        .await?;
     let added = lab.get().await?;
 
-    lab.edit(EditLabRequest::new().version(2).clear_description()).await?;
+    lab.edit(EditLabRequest::new().version(2).clear_description())
+        .await?;
     let edited = lab.get().await?;
     assert_ne!(edited.version, added.version);
     assert_ne!(edited.description, added.description);
@@ -324,7 +333,10 @@ async fn node_lifecycle() -> Result<()> {
 
     node.start().await?;
     assert!(matches!(node.status().await?, NodeStatus::Running));
-    assert_eq!(env.client.system().auth().await?.lab, "/test.unl".to_string());
+    assert_eq!(
+        env.client.system().auth_status().await?.lab,
+        "/test.unl".to_string()
+    );
 
     node.stop().await?;
     assert!(matches!(node.status().await?, NodeStatus::Stopped));
@@ -379,7 +391,9 @@ async fn network_lifecycle() -> Result<()> {
     let network = lab.networks().add(req).await?;
     let added = network.get().await?;
 
-    network.edit(EditNetworkRequest::new().network_type("bridge")).await?;
+    network
+        .edit(EditNetworkRequest::new().network_type("bridge"))
+        .await?;
     let edited = network.get().await?;
     assert_ne!(edited.network_type, added.network_type);
     assert_eq!(edited.id, added.id);

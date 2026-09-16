@@ -2,10 +2,6 @@ name: CI
 
 on: [push, pull_request]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 env:
   CARGO_TERM_COLOR: always
 
@@ -28,6 +24,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "eveng"
       - run: cargo clippy --all-targets -- -D warnings
 
   test:
@@ -36,6 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "eveng"
       - run: cargo test
 
   doc:
@@ -46,4 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "eveng"
       - run: cargo doc --no-deps

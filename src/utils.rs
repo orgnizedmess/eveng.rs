@@ -138,7 +138,7 @@ mod tests {
     #[derive(Debug, Deserialize)]
     struct Uuid {
         #[serde(deserialize_with = "empty_string_is_none")]
-        uuid: Option<String>
+        uuid: Option<String>,
     }
 
     #[derive(Debug, Deserialize)]
@@ -169,22 +169,27 @@ mod tests {
 
     #[test]
     fn string_remains_string() {
-        let uuid: Uuid = serde_json::from_str(r#"{"uuid":"6d88a1b5-64db-46c2-9aa5-ca4fca0811c2"}"#).unwrap();
-        assert_eq!(uuid.uuid, Some("6d88a1b5-64db-46c2-9aa5-ca4fca0811c2".to_string()));
+        let uuid: Uuid =
+            serde_json::from_str(r#"{"uuid":"6d88a1b5-64db-46c2-9aa5-ca4fca0811c2"}"#).unwrap();
+        assert_eq!(
+            uuid.uuid,
+            Some("6d88a1b5-64db-46c2-9aa5-ca4fca0811c2".to_string())
+        );
     }
 
     #[test]
     fn map_stays_a_map() {
-        let m: Links =
-            serde_json::from_str(r#"{"ethernet":{"1":"a","16":"b","49":"c"},"serial":{"1":{"3":"a"}}}"#).unwrap();
+        let m: Links = serde_json::from_str(
+            r#"{"ethernet":{"1":"a","16":"b","49":"c"},"serial":{"1":{"3":"a"}}}"#,
+        )
+        .unwrap();
         assert_eq!(m.ethernet[&1], "a");
         assert_eq!(m.serial[&1][&3], "a");
     }
 
     #[test]
     fn array_becomes_a_map() {
-        let h: Links =
-            serde_json::from_str(r#"{"ethernet":["a", "b", "c"],"serial":[]}"#).unwrap();
+        let h: Links = serde_json::from_str(r#"{"ethernet":["a", "b", "c"],"serial":[]}"#).unwrap();
         assert_eq!(h.ethernet[&0], "a");
         assert!(h.serial.is_empty());
     }

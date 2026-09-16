@@ -111,7 +111,9 @@ pub(crate) struct Response<T> {
 
 impl<T> Response<T> {
     pub(crate) fn into_data(self) -> Result<T> {
-        self.data.ok_or(Error::Client("Expected data in response but got none.".to_string()))
+        self.data.ok_or(Error::Client(
+            "Expected data in response but got none.".to_string(),
+        ))
     }
 }
 
@@ -168,7 +170,9 @@ impl Client {
         T: DeserializeOwned,
         B: Serialize,
     {
-        let url = self.base_url.join(&format!("api/{}", endpoint))
+        let url = self
+            .base_url
+            .join(&format!("api/{}", endpoint))
             .map_err(|e| Error::Client(format!("Invalid URL: {e}")))?;
         let mut request = self.api.request(method, url);
 
@@ -176,9 +180,13 @@ impl Client {
             request = request.json(body);
         }
 
+        eprintln!("{:#?}", request);
+
         let response = request.send().await?;
         let status = response.status();
         let text = response.text().await?;
+
+        eprintln!("{}", text);
 
         if !status.is_success() {
             return Err(Error::from_response(status, text));
