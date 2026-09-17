@@ -1,12 +1,12 @@
 # eveng.rs
 
-This is an API client for [EVE-NG]. It implements endpoints documented as part of it's [REST API], as well as some undocumented endpoints found from interaction with the EVE-NG GUI.
+This is an API client for [EVE-NG]. It implements endpoints documented as part of its [REST API], as well as some undocumented endpoints found from interaction with the EVE-NG GUI.
 
 Tested on the Community Edition Version 6.2.0-4.
 
 ## Example
 
-```rust
+```rust,no_run
 use eveng::Client;
 use eveng::labs::AddLabRequest;
 use eveng::networks::AddNetworkRequest;
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::login("http://localhost", "username", "password").await?;
     let root = client.folder("/")?;
 
-    let lab = root.labs().add(&AddLabRequest::new("Test")?).await?;
+    let lab = root.labs().add(AddLabRequest::new("Test")?).await?;
 
     let tmpl = client.system().node_template("vios").get().await?;
 

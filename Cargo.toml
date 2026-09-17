@@ -2,6 +2,7 @@
 name = "eveng"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 authors = ["Piya Gehi <piya@orgnizedmess.net>"]
 license = "MIT"
 description = "An API Client for EVE-NG"
@@ -17,5 +18,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 serde_repr = "0.1.21"
 thiserror = "2.0.19"
-tokio = { version = "1.53.1", features = ["full"] }
-url = "2.5.8"
+tokio = { version = "1.53.1", features = ["time"] }
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }

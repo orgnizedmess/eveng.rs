@@ -112,10 +112,15 @@ pub struct Node {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeType {
+    /// A node backed by a Docker container.
     Docker,
+    /// A node emulated by Dynamips.
     Dynamips,
+    /// A node running an IOS on Linux image.
     Iol,
+    /// A node emulated by QEMU.
     Qemu,
+    /// A node running the Virtual PC Simulator.
     Vpcs,
 }
 
@@ -137,9 +142,13 @@ impl std::fmt::Display for NodeType {
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum NodeStatus {
+    /// The node is not running.
     Stopped = 0,
+    /// The node is booting.
     Starting = 1,
+    /// The node is running.
     Running = 2,
+    /// The node is shutting down.
     Stopping = 3,
 }
 
@@ -147,7 +156,9 @@ pub enum NodeStatus {
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum StartupConfig {
+    /// The node boots without a startup config.
     None = 0,
+    /// The node boots from a previously exported startup config.
     Exported = 1,
 }
 
