@@ -14,7 +14,7 @@ pub mod system;
 pub mod templates;
 pub mod users;
 
-pub use client::Client;
+pub use client::{Client, ClientBuilder};
 pub use error::Error;
 
 /// Result type alias.
