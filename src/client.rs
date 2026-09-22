@@ -180,13 +180,9 @@ impl Client {
             request = request.json(body);
         }
 
-        eprintln!("{:#?}", request);
-
         let response = request.send().await?;
         let status = response.status();
         let text = response.text().await?;
-
-        eprintln!("{}", text);
 
         if !status.is_success() {
             return Err(Error::from_response(status, text));
