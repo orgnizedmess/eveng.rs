@@ -1,5 +1,9 @@
 # eveng.rs
 
+[![ci](https://github.com/orgnizedmess/eveng.rs/workflows/CI/badge.svg)](https://github.com/orgnizedmess/eveng.rs/actions)
+[![crates.io](https://img.shields.io/crates/v/eveng.svg)](https://crates.io/crates/eveng)
+[![docs.rs](https://docs.rs/eveng/badge.svg)](https://docs.rs/eveng)
+
 This is an API client for [EVE-NG]. It implements endpoints documented as part of its [REST API], as well as some undocumented endpoints found from interaction with the EVE-NG GUI.
 
 Tested on the Community Edition Version 6.2.0-4.
