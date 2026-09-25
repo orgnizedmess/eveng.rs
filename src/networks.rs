@@ -85,6 +85,11 @@ impl NetworkClient {
         Self { client, path, id }
     }
 
+    /// Returns the network's ID within its lab.
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
     /// Gets the network's details.
     pub async fn get(&self) -> Result<Network> {
         self.client
