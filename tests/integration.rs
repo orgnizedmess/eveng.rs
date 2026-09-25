@@ -496,6 +496,31 @@ async fn interface_connections() -> Result<()> {
     env.teardown().await
 }
 
+#[tokio::test]
+#[ignore]
+async fn detach_keeps_the_network() -> Result<()> {
+    let env = TestEnv::setup().await?;
+    let lab = env.client.folder("/")?.lab("test")?;
+
+    let node1 = env.new_vpcs_node(&lab).await?;
+    let node2 = env.new_vpcs_node(&lab).await?;
+    node1
+        .ethernet(0)
+        .connect_to_node(&node2.ethernet(0))
+        .await?;
+    let bridge = node1.ethernet(0).get().await?.network_id;
+
+    node1.ethernet(0).detach().await?;
+    assert!(!node1.ethernet(0).is_connected().await?);
+    assert_eq!(node2.ethernet(0).get().await?.network_id, bridge);
+    assert!(lab.network(bridge).get().await.is_ok());
+
+    node1.delete().await?;
+    node2.delete().await?;
+    lab.network(bridge).delete().await?;
+    env.teardown().await
+}
+
 // TODO: Topology test with open lab
 // TODO: Topology test with closed lab
 // TODO: Topology test with another opened lab
