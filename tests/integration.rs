@@ -317,6 +317,7 @@ async fn node_lifecycle() -> Result<()> {
         .ram(2048)
         .ethernet(2);
     let node = lab.nodes().add(req).await?;
+    assert!(lab.nodes().list().await?.contains_key(&node.id()));
     let added = node.get().await?;
     assert_eq!(added.left, 100);
     assert_eq!(added.top, 100);
@@ -389,6 +390,8 @@ async fn network_lifecycle() -> Result<()> {
 
     let req = AddNetworkRequest::new("pnet0");
     let network = lab.networks().add(req).await?;
+    let id = i32::try_from(network.id()).unwrap();
+    assert!(lab.networks().list().await?.contains_key(&id));
     let added = network.get().await?;
 
     network
