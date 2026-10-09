@@ -46,6 +46,17 @@ jobs:
           key: "eveng-test"
       - run: cargo test
 
+  native-tls:
+    name: native-tls
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: "eveng-native-tls"
+      - run: cargo test --no-default-features --features native-tls
+
   doc:
     name: doc
     runs-on: ubuntu-latest
