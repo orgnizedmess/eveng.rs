@@ -188,7 +188,7 @@ impl Client {
             return Err(Error::from_response(status, text));
         }
 
-        Ok(serde_json::from_str::<Response<T>>(&text).unwrap())
+        Ok(serde_json::from_str::<Response<T>>(&text)?)
     }
 
     /// Make a GET request to the API
@@ -257,5 +257,23 @@ mod tests {
         assert_eq!(builder.html5, 0);
         assert!(!builder.ssl_verify);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn unparseable_success_body() {
+        use std::io::{Read, Write};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let _ = stream.read(&mut [0; 4096]);
+            let _ = stream.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\n<html></html>",
+            );
+        });
+
+        let err = Client::login(url, "admin", "eve").await.unwrap_err();
+        assert!(matches!(err, Error::Json(_)));
     }
 }
