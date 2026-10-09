@@ -276,6 +276,11 @@ impl NodeClient {
         Self { client, path, id }
     }
 
+    /// Returns the node's ID within its lab.
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
     fn lab(&self) -> LabClient {
         LabClient::from_path(self.client.clone(), self.path.clone())
     }
