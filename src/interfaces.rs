@@ -282,7 +282,9 @@ impl InterfaceClient<Ethernet> {
         self.connect(dest.id.to_string()).await
     }
 
-    /// Removes an existing connection on the ethernet interface.
+    /// Removes an existing connection on the ethernet interface. For a
+    /// connection made with [`connect_to_node`](Self::connect_to_node), this
+    /// deletes the hidden bridge, which disconnects the other node as well.
     pub async fn disconnect(&self) -> Result<()> {
         let iface = self.get().await?;
         if !iface.is_connected() {
